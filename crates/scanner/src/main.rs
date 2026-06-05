@@ -20,6 +20,7 @@ mod parse_repo;
 mod parse_session;
 mod rules;
 mod suppress;
+mod triage;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -148,6 +149,14 @@ fn main() -> ExitCode {
         OutputFormat::Md => format::md::to_markdown(&report),
     };
     println!("{rendered}");
+
+    // Step 3.1 (`--llm-assist`, Hybrid C): emit the ambiguous-candidate triage
+    // manifest to STDERR for an orchestrator to triage. EMITTER ONLY — stdout is
+    // already written above and is unchanged by this; the binary never calls an
+    // LLM nor reads a verdict back. Off by default → nothing extra on stderr.
+    if cli.llm_assist {
+        triage::emit_manifest(&report);
+    }
 
     ExitCode::SUCCESS
 }

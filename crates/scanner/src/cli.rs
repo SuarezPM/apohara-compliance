@@ -71,6 +71,16 @@ pub struct Cli {
     #[arg(long, global = true, default_value_t = false)]
     pub only_new: bool,
 
+    /// Opt-in (US-F3-1 / Step 3.1, Hybrid C): EMIT a triage manifest of the
+    /// ambiguous (`ambiguity == true`) ACTIVE candidates to STDERR, for an
+    /// orchestrator (the apohara-compliance skill) to triage out-of-band. This is
+    /// an EMITTER only — stdout stays byte-identical to a run without the flag,
+    /// and the binary NEVER calls an LLM nor reads a verdict back, so the
+    /// offline/deterministic thesis is preserved by construction. OFF by default;
+    /// when omitted, nothing extra is written to stderr.
+    #[arg(long, global = true, default_value_t = false)]
+    pub llm_assist: bool,
+
     #[command(subcommand)]
     pub command: Command,
 }

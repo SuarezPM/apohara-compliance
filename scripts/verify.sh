@@ -534,6 +534,44 @@ else
   pass "--by-asi POSITIVE guard (every MD finding line CANDIDATE-prefixed)"
 fi
 
+echo "== --llm-assist triage manifest emitter (US-F3-1 / Step 3.1, Hybrid C) =="
+# EMITTER-ONLY semantics: with --llm-assist OFF nothing extra is written; with it
+# ON, stdout is byte-identical and a single triage manifest of the ambiguous
+# (ambiguity==true) ACTIVE candidates is written to STDERR for an orchestrator to
+# triage. The binary never calls an LLM nor merges a verdict back.
+"$BIN" scan-session tests/fixtures/session-sample.jsonl --format json > /tmp/ac_la_off.out 2> /tmp/ac_la_off.err
+"$BIN" --llm-assist scan-session tests/fixtures/session-sample.jsonl --format json > /tmp/ac_la_on.out 2> /tmp/ac_la_on.err
+if cmp -s /tmp/ac_la_off.out /tmp/ac_la_on.out; then
+  pass "--llm-assist: stdout byte-identical with the flag on vs off (emitter-only)"
+else
+  bad "--llm-assist: stdout drifted when the flag is set"
+fi
+if grep -q 'llm-assist-manifest:' /tmp/ac_la_off.err; then
+  bad "--llm-assist OFF: manifest leaked to stderr"
+else
+  pass "--llm-assist OFF: no manifest on stderr (byte-shape preserved)"
+fi
+if [ "$(grep -c 'llm-assist-manifest:' /tmp/ac_la_on.err)" = "1" ]; then
+  pass "--llm-assist ON: exactly one manifest line on stderr"
+else
+  bad "--llm-assist ON: expected exactly one manifest line on stderr"
+fi
+grep 'llm-assist-manifest:' /tmp/ac_la_on.err | sed 's/^.*llm-assist-manifest: //' > /tmp/ac_la_manifest.json
+python3 - <<'PY' && pass "--llm-assist: manifest valid JSON, schema tag, ids subset of the active set" || bad "--llm-assist manifest shape"
+import json
+m = json.load(open('/tmp/ac_la_manifest.json'))
+assert m['schema'] == 'apohara-triage-manifest/1', m.get('schema')
+assert isinstance(m['candidates'], list), 'candidates must be a list'
+active = {f['id'] for f in json.load(open('/tmp/ac_la_on.out'))['findings']}
+for c in m['candidates']:
+    assert c['id'] in active, f"manifest id {c['id']} absent from the deterministic active set"
+PY
+if grep -Eiq "$NEGATIVE_GUARD" /tmp/ac_la_manifest.json; then
+  bad "--llm-assist manifest NEGATIVE guard (found forbidden string)"
+else
+  pass "--llm-assist manifest NEGATIVE guard (no forbidden strings)"
+fi
+
 echo "== Gap analysis over the 49 carried controls (US-F1-4 / fix #11d) =="
 # RAC-1.7: `gap` lists controls (from the 49 ONLY) with zero candidate evidence,
 # absence-framed; the output carries the absence-of-evidence disclaimer + the
