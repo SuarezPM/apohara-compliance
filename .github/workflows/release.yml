@@ -40,7 +40,12 @@ jobs:
             os: macos-latest
             ext: ""
           - target: x86_64-apple-darwin
-            os: macos-13
+            # macos-13 (the last x86_64-native macOS image) no longer gets a
+            # runner here (deprecated / no capacity → jobs hang in `queued`).
+            # Cross-compile x86_64 from an Apple-Silicon runner instead: the macOS
+            # SDK on macos-latest targets both arches and this crate is pure Rust
+            # (serde/regex/clap), so `--target x86_64-apple-darwin` builds cleanly.
+            os: macos-latest
             ext: ""
           - target: x86_64-pc-windows-msvc
             os: windows-latest
