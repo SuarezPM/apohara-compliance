@@ -1,0 +1,46 @@
+# EU AI Act — Chapter III Section 2 article cross-reference layer (US-F2-3, plan Step 2.3)
+#
+# Authored reference data (cross-reference layer, NOT folded into the 49 controls
+# in controls-49.yaml — these three high-risk articles are a SEPARATE coverage
+# layer). The EU AI Act normative TEXT is © European Union; only the (factual)
+# OFFICIAL article numbers and official article TITLES are reproduced here, PLUS
+# our OWN one-line paraphrase of each article's intent. NO verbatim regulation
+# prose beyond the short official article title is reproduced (cite-don't-copy
+# principle; the consolidated regulation text is published on eur-lex).
+#
+# Source: Regulation (EU) 2024/1689 of the European Parliament and of the Council
+#   of 13 June 2024 (the "Artificial Intelligence Act"), Chapter III, Section 2
+#   "Requirements for high-risk AI systems" (Articles 8-15).
+#   Consolidated text: https://eur-lex.europa.eu/eli/reg/2024/1689
+# Every article id + official title below was exa-verified on 2026-06-05 against
+# eur-lex.europa.eu and the European Commission AI Act Service Desk article index
+# (the official article titles are facts about the regulation's structure; the
+# `paraphrase` field is our own wording, never EU prose).
+#
+# controls-49.yaml ALREADY carries EU-AI-ACT Art-9/12/14/15/73; this layer adds
+# the directly session-relevant Art-10/11/13 that the 49-suite does not carry, as
+# a cross-reference layer (same separate-layer pattern as ATLAS / ISO 42001). The
+# controls-49 count is UNCHANGED (still 49). Only the session-relevant subset of
+# Section 2 is carried — articles that map cleanly to one of the 16 AGT detection
+# rules (see detection-rules.yaml `eu_ai_act_xref`). No article number is invented.
+schema_version: 1
+framework: "EU AI Act"
+version: "Regulation (EU) 2024/1689"
+source_url: "https://eur-lex.europa.eu/eli/reg/2024/1689"
+verified_on: "2026-06-05"
+status: official
+
+articles:
+  # Chapter III, Section 2 — requirements for high-risk AI systems.
+  - id: "EU-AI-ACT:Art-10"
+    title: "Data and data governance"
+    paraphrase: "Govern the training, validation and testing data of a high-risk AI system for quality and appropriate handling."
+    source_url: "https://eur-lex.europa.eu/eli/reg/2024/1689"
+  - id: "EU-AI-ACT:Art-11"
+    title: "Technical documentation"
+    paraphrase: "Maintain up-to-date technical documentation evidencing a high-risk AI system's conformity for authorities to assess."
+    source_url: "https://eur-lex.europa.eu/eli/reg/2024/1689"
+  - id: "EU-AI-ACT:Art-13"
+    title: "Transparency and provision of information to deployers"
+    paraphrase: "Make a high-risk AI system transparent enough that deployers can interpret and use its output appropriately."
+    source_url: "https://eur-lex.europa.eu/eli/reg/2024/1689"

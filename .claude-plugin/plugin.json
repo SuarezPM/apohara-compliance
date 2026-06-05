@@ -1,0 +1,27 @@
+{
+  "name": "apohara-compliance",
+  "version": "0.3.0",
+  "description": "Maps a coding agent's observed actions or a repository to compliance/security framework controls, surfacing candidate risks and controls with citations. Guidance and mapping only — never certification, audit, or legal advice.",
+  "author": {
+    "name": "Pablo M. Suarez",
+    "url": "https://github.com/SuarezPM"
+  },
+  "license": "MIT OR Apache-2.0",
+  "repository": "https://github.com/SuarezPM/apohara-compliance",
+  "homepage": "https://github.com/SuarezPM/apohara-compliance",
+  "keywords": [
+    "compliance",
+    "agentic-security",
+    "owasp",
+    "owasp-agentic",
+    "owasp-llm",
+    "eu-ai-act",
+    "nist-ai-rmf",
+    "iso-27001",
+    "soc2",
+    "sarif"
+  ],
+  "skills": [
+    "./skills/apohara-compliance/"
+  ]
+}

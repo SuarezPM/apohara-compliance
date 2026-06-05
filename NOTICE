@@ -1,0 +1,8 @@
+apohara-compliance
+Copyright 2026 Pablo M. Suarez
+
+This product is part of Apohara Catalyst, the Apohara ecosystem umbrella project
+(https://github.com/apohara/catalyst).
+
+Upstream Rust crate dependencies are listed, with their respective licenses, in
+the project's Cargo.toml files and can be enumerated via `cargo license`.

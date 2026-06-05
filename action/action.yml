@@ -1,0 +1,127 @@
+name: "apohara-compliance scan"
+description: >-
+  Run the apohara-compliance scanner over a repository or an agent session
+  transcript and upload the SARIF result to GitHub code scanning. Findings are
+  CANDIDATES for review (warnings/notes), never errors and never assertions of
+  compliance. Part of the apohara-compliance agent-compliance skill (US-F2-4).
+author: "SuarezPM"
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  mode:
+    description: >-
+      Which scan to run: `scan-repo` (a repository directory), `scan-session`
+      (an AI coding-agent `.jsonl` transcript), or `gap` (zero-evidence controls).
+    required: false
+    default: "scan-repo"
+  target:
+    description: >-
+      Path to scan: a repository root for `scan-repo`/`gap`, or a `.jsonl`
+      session transcript for `scan-session`. Defaults to the checked-out repo.
+    required: false
+    default: "."
+  ext:
+    description: >-
+      Optional comma-separated file-extension allowlist for `scan-repo` (e.g.
+      `rs,py`). Restricts which files the walker reads. Empty = all files.
+    required: false
+    default: ""
+  baseline:
+    description: >-
+      Optional path to a prior scan's JSON report. When set, each SARIF result
+      is annotated with a `baselineState` (new/unchanged/absent).
+    required: false
+    default: ""
+  only-new:
+    description: >-
+      With `baseline`, emit ONLY findings whose `baselineState` is `new`
+      (`true`/`false`).
+    required: false
+    default: "false"
+  rules-dir:
+    description: >-
+      Optional path to the canonical `references/*.yaml`. When omitted the
+      cargo-installed binary uses its build-time-embedded rules
+      (`rules_source: embedded-fallback`, the expected steady state).
+    required: false
+    default: ""
+  scanner-version:
+    description: >-
+      Version of `apohara-compliance-scanner` to `cargo install` from crates.io.
+      Defaults to the latest published release.
+    required: false
+    default: ""
+  sarif-file:
+    description: "Path the SARIF report is written to and uploaded from."
+    required: false
+    default: "apohara-compliance.sarif"
+  category:
+    description: "SARIF category for the code-scanning upload (groups results)."
+    required: false
+    default: "apohara-compliance"
+  upload:
+    description: >-
+      Whether to upload the SARIF to GitHub code scanning
+      (`github/codeql-action/upload-sarif`). Set `false` to only produce the
+      SARIF artifact (e.g. on a fork PR without code-scanning permissions).
+    required: false
+    default: "true"
+
+outputs:
+  sarif-file:
+    description: "Path to the SARIF report produced by the scan."
+    value: ${{ inputs.sarif-file }}
+
+runs:
+  using: "composite"
+  steps:
+    # PRIMARY acquisition path per SKILL.md: build from source with cargo install
+    # (lowest-trust-assumption — no opaque pre-built artifact is executed; rules
+    # are embedded from the canonical references/*.yaml at build time).
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install apohara-compliance-scanner
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -n "${{ inputs.scanner-version }}" ]; then
+          cargo install apohara-compliance-scanner --version "${{ inputs.scanner-version }}" --locked
+        else
+          cargo install apohara-compliance-scanner --locked
+        fi
+
+    - name: Run apohara-compliance scan (SARIF)
+      shell: bash
+      run: |
+        set -euo pipefail
+        args=()
+        # Global flags precede the subcommand (clap `global = true`).
+        if [ -n "${{ inputs.rules-dir }}" ]; then
+          args+=( --rules-dir "${{ inputs.rules-dir }}" )
+        fi
+        if [ -n "${{ inputs.baseline }}" ]; then
+          args+=( --baseline "${{ inputs.baseline }}" )
+          if [ "${{ inputs.only-new }}" = "true" ]; then
+            args+=( --only-new )
+          fi
+        fi
+        args+=( --format sarif )
+        # Subcommand + target.
+        args+=( "${{ inputs.mode }}" "${{ inputs.target }}" )
+        # `--ext` is a scan-repo subcommand flag (placed AFTER the target).
+        if [ "${{ inputs.mode }}" = "scan-repo" ] && [ -n "${{ inputs.ext }}" ]; then
+          args+=( --ext "${{ inputs.ext }}" )
+        fi
+        echo "apohara-compliance-scanner ${args[*]}"
+        # stdout is the SARIF report; stderr carries the audit trail.
+        apohara-compliance-scanner "${args[@]}" > "${{ inputs.sarif-file }}"
+
+    - name: Upload SARIF to GitHub code scanning
+      if: ${{ inputs.upload == 'true' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.sarif-file }}
+        category: ${{ inputs.category }}

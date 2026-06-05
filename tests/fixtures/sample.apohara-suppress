@@ -1,0 +1,14 @@
+# apohara-compliance allowlist (US-F0-2) — sample fixture.
+#
+# Format: one rule per line, `agt_code[:signal][:source_glob]`.
+#   * any positional field may be `*` to wildcard it.
+#   * `* matches any run of chars in the source glob.
+#   * a trailing `# reason` records the human justification.
+#
+# A suppressed candidate is NEVER dropped — it moves to the report's VISIBLE
+# `suppressed` channel (json/md) and, in SARIF, into results[] carrying
+# result.suppressions[{kind:"external"}]. It stays is_candidate:true.
+
+# The fixture report.sql intentionally trips AGT-EXF-001; allowlist it here so
+# the demo shows a suppressed-but-visible candidate.
+AGT-EXF-001:SELECT * FROM:repo-file:*report.sql   # known scan-repo test fixture

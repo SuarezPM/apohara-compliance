@@ -1,0 +1,34 @@
+# apohara-compliance config (US-F1-2) — sample fixture.
+#
+# The single user-facing EXTENSIBILITY surface. All sections are OPTIONAL; an
+# absent or partial config never changes behavior (byte-identical to no-config).
+# Discovered as `.apohara-compliance.toml` beside the scan target, or via
+# `--config <path>`. CLI flags (`--min-confidence` / `--min-severity`) override
+# the `[thresholds]` values here.
+
+# Tool-internal scoring filters. Findings below a threshold are NOT deleted —
+# they move to the VISIBLE threshold-drop channel (json `suppressed[]` with
+# origin "threshold"; SARIF `properties.dropped_by_threshold: true`, NO
+# `suppressions` property). This is a TOOL filter, never a human allowlist.
+[thresholds]
+min_confidence = 0.85
+min_severity = 6
+
+# Human allowlist (gitleaks-style) — the TOML equivalent of a `.apohara-suppress`
+# line. Rule-specific (agt_code + optional source_glob) AND global both work; a
+# suppressed candidate stays VISIBLE with its reason and renders as a SARIF
+# `result.suppressions[{kind:"external"}]`.
+[[suppress]]
+agt_code = "AGT-EXF-001"
+source_glob = "repo-file:*report.sql"
+reason = "known scan-repo test fixture — illustrative, not a live exfiltration"
+
+[[suppress]]
+agt_code = "AGT-PI-001"
+reason = "global: this jailbreak signal is noisy prose in this repo"
+
+# Override a rule's EFFECTIVE severity used by the --min-severity comparison.
+# AGT-CODE = u8. Here AGT-PI-002 (rule severity 7) is raised to 9 so it survives
+# a `min_severity = 8` filter.
+[severity]
+AGT-PI-002 = 9

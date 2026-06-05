@@ -1,0 +1,4 @@
+# Proves scan-repo respects .gitignore: secret.env contains a rule-tripping
+# signal but MUST be skipped by the walker, so it never produces a finding.
+secret.env
+*.log

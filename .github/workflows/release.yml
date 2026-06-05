@@ -1,0 +1,225 @@
+name: release
+
+# Multi-platform release for the apohara-compliance scanner (consensus plan
+# Step 5 / AC-16). Builds 4 target binaries, generates build provenance
+# (GitHub artifact attestation) + cosign signatures, produces SHA256SUMS,
+# fails if any target binary is missing, publishes to crates.io, and verifies
+# the packaged plugin bundle ships resolvable references/*.yaml.
+#
+# Trigger: a pushed semver tag (e.g. v0.1.0).
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write       # create the GitHub Release + upload assets
+  id-token: write       # cosign keyless (OIDC) + attestation
+  attestations: write   # actions/attest-build-provenance
+
+env:
+  CARGO_TERM_COLOR: always
+  BIN_NAME: apohara-compliance-scanner
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Build the scanner for the 4 required targets via a matrix.
+  # ---------------------------------------------------------------------------
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            ext: ""
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            ext: ""
+          - target: x86_64-apple-darwin
+            os: macos-13
+            ext: ""
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            ext: ".exe"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --locked --target ${{ matrix.target }} --package ${{ env.BIN_NAME }}
+
+      - name: Stage binary
+        id: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="target/${{ matrix.target }}/release/${{ env.BIN_NAME }}${{ matrix.ext }}"
+          out="${{ env.BIN_NAME }}-${{ matrix.target }}${{ matrix.ext }}"
+          mkdir -p dist
+          cp "$src" "dist/$out"
+          echo "asset=dist/$out" >> "$GITHUB_OUTPUT"
+          echo "asset_name=$out" >> "$GITHUB_OUTPUT"
+
+      - name: Generate build provenance attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.stage.outputs.asset }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign binary with cosign (keyless)
+        shell: bash
+        env:
+          COSIGN_YES: "true"
+        run: |
+          set -euo pipefail
+          cosign sign-blob --yes \
+            --output-signature "${{ steps.stage.outputs.asset }}.sig" \
+            --output-certificate "${{ steps.stage.outputs.asset }}.pem" \
+            "${{ steps.stage.outputs.asset }}"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            dist/${{ steps.stage.outputs.asset_name }}
+            dist/${{ steps.stage.outputs.asset_name }}.sig
+            dist/${{ steps.stage.outputs.asset_name }}.pem
+          if-no-files-found: error
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # 2. Collect binaries, FAIL if any of the 4 targets is missing, produce
+  #    SHA256SUMS, and upload everything to the GitHub Release.
+  # ---------------------------------------------------------------------------
+  release:
+    name: assemble release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          find artifacts -type f -exec cp {} dist/ \;
+          ls -la dist
+
+      - name: Fail if any of the 4 target binaries is missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            "${BIN_NAME}-x86_64-unknown-linux-gnu"
+            "${BIN_NAME}-aarch64-apple-darwin"
+            "${BIN_NAME}-x86_64-apple-darwin"
+            "${BIN_NAME}-x86_64-pc-windows-msvc.exe"
+          )
+          missing=0
+          for f in "${required[@]}"; do
+            if [[ ! -f "dist/$f" ]]; then
+              echo "::error::missing required release binary: $f"
+              missing=1
+            else
+              echo "found: $f"
+            fi
+            # The signature must ship alongside each binary.
+            if [[ ! -f "dist/$f.sig" ]]; then
+              echo "::error::missing cosign signature for: $f"
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            echo "::error::release ABORTED — not all 4 target binaries (+ signatures) are present"
+            exit 1
+          fi
+          echo "all 4 target binaries present"
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum ${BIN_NAME}-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/${{ env.BIN_NAME }}-*
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true
+
+  # ---------------------------------------------------------------------------
+  # 3. Bundle-integrity check: the packaged plugin bundle MUST ship the
+  #    resolvable references/*.yaml the skill's --rules-dir / env points at, so
+  #    installs never silently fall through to the embedded copy.
+  # ---------------------------------------------------------------------------
+  bundle-integrity:
+    name: bundle integrity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Stage the bundle (copy canonical references into the skill subtree)
+        # Simulates the marketplace bundler: places the resolvable references/
+        # INTO skills/apohara-compliance/ so installs don't fall through to the
+        # embedded copy. Fails if the canonical references are themselves absent.
+        run: bash scripts/check-bundle.sh
+
+      - name: Assert the staged bundle ships resolvable references/*.yaml
+        run: bash scripts/check-bundle.sh --check
+
+  # ---------------------------------------------------------------------------
+  # 4. Publish the scanner crate to crates.io (the PRIMARY acquisition path).
+  # ---------------------------------------------------------------------------
+  publish-crate:
+    name: cargo publish
+    needs: [build, bundle-integrity]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish apohara-compliance-scanner to crates.io
+        # Skips cleanly until a CARGO_REGISTRY_TOKEN secret is configured, so the
+        # release stays green and the crate is published deliberately, not by
+        # accident (cargo publish is irreversible — a version name can never be
+        # reused once taken).
+        run: |
+          if [ -z "${CARGO_REGISTRY_TOKEN}" ]; then
+            echo "CARGO_REGISTRY_TOKEN not set — skipping crates.io publish."
+            exit 0
+          fi
+          cargo publish --locked --package "${{ env.BIN_NAME }}"
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

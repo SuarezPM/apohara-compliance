@@ -1,0 +1,300 @@
+# Detection rules — the 16 AGT-* incident codes (AC-7/8 data)
+#
+# Extracted from the Apohara consilium incident taxonomy:
+#   docs/research/incident-taxonomy.md (lines 52-122).
+# Detection signals are the REAL keyword signals from that document's
+# "Detection Signals" column — not invented. DJL rules, compliance refs, and
+# severity are likewise transcribed from the source table.
+#
+# Field semantics:
+#   agt_code            : the AGT-* incident code.
+#   name                : incident name (from the taxonomy table).
+#   severity            : severity score from the taxonomy (1-10).
+#   signals             : REAL detection-signal keywords (incident-taxonomy.md).
+#   djl_rules           : Deterministic Judge Layer rule IDs (source table).
+#   maps_to_controls    : compliance control IDs the incident maps to. Entries
+#                         present in controls-49.yaml are authoritative; other
+#                         standards (GDPR, CCPA, HIPAA, PCI-DSS, FinCEN, CIS,
+#                         ISO-42001, SP800-188) are cited verbatim from the
+#                         taxonomy's "Compliance Refs" column for traceability.
+#   asi_xref            : OWASP ASI (Agentic Applications 2026) cross-reference,
+#                         derived from the incident semantics. ASI ids are
+#                         defined in asi-2026.yaml.
+#   atlas_xref          : MITRE ATLAS technique cross-reference (US-F2-1). Optional
+#                         `AML.T####(.###)` ids; defined in atlas-2026.yaml.
+#   iso42001_xref       : ISO/IEC 42001:2023 Annex A control cross-reference
+#                         (US-F2-2). Optional `ISO42001:A.#.#(.#)` ids; defined in
+#                         iso42001-2023.yaml (a SEPARATE coverage layer, NOT folded
+#                         into the 49 controls). Surfaced after ATLAS in cross_refs.
+#   eu_ai_act_xref      : EU AI Act (Regulation (EU) 2024/1689) Chapter III
+#                         Section 2 article cross-reference (US-F2-3). Optional
+#                         `EU-AI-ACT:Art-#` ids; defined in eu-ai-act-2024.yaml
+#                         (a SEPARATE coverage layer, NOT folded into the 49). This
+#                         field carries the session-relevant Art-10/11/13 that the
+#                         49-suite omits; Art-9/12/14/15 already live in
+#                         controls-49.yaml. Surfaced after ISO 42001 in cross_refs.
+#   default_confidence  : baseline confidence (0.0-1.0) for a keyword match;
+#                         scaled from the source severity (sev/10), clamped to
+#                         [0.5, 0.9] because a keyword hit is a CANDIDATE signal,
+#                         never a certainty.
+#   citation            : "incident-taxonomy.md:LINE".
+schema_version: 1
+total: 16
+verified_on: "2026-06-05"
+
+rules:
+  # --- Prompt Injection (AGT-PI) — incident-taxonomy.md:52-54 ---
+  - agt_code: "AGT-PI-001"
+    name: "Prompt Override Attempt"
+    severity: 8
+    signals: ["ignore previous", "disregard instructions", "developer mode", "system override", "DAN", "jailbreak"]
+    djl_rules: ["DJL-PI-001", "DJL-PI-002", "DJL-PI-003"]
+    # SP800-53:SI-4 (System Monitoring) is carried in the 49-suite; SI-10 (Input
+    # Validation) is apt but outside the curated subset, so we cite the carried,
+    # fully-provenanced SI-4 rather than emit an un-resolvable in-suite-prefixed ID.
+    maps_to_controls: ["NIST-AI-RMF:RMF-GOVERN-1.1", "OWASP-LLM:LLM01", "EU-AI-ACT:Art-14", "SP800-53:SI-4"]
+    asi_xref: ["ASI01"]
+    # MITRE ATLAS (US-F2-1): an override attempt is direct LLM prompt injection;
+    # jailbreak signals (DAN, "developer mode") are also an LLM Jailbreak.
+    atlas_xref: ["AML.T0051", "AML.T0051.000", "AML.T0054"]
+    default_confidence: 0.8
+    citation: "incident-taxonomy.md:52"
+  - agt_code: "AGT-PI-002"
+    name: "Roleplay Persona Manipulation"
+    severity: 7
+    signals: ["pretend you are", "act as", "you are now", "in this roleplay", "fictional AI", "no restrictions"]
+    djl_rules: ["DJL-PI-004", "DJL-PI-005"]
+    maps_to_controls: ["OWASP-LLM:LLM01", "NIST-AI-RMF:AGENTIC-MAP-PROMPT-SURFACE", "EU-AI-ACT:Art-9"]
+    asi_xref: ["ASI01"]
+    # MITRE ATLAS (US-F2-1): roleplay/persona prompts are direct prompt injection
+    # aimed at bypassing alignment ("no restrictions") — an LLM Jailbreak.
+    atlas_xref: ["AML.T0051", "AML.T0051.000", "AML.T0054"]
+    default_confidence: 0.7
+    citation: "incident-taxonomy.md:53"
+    # US-F1-1 (ADR-1) context DSL — negative context only. A roleplay signal
+    # such as "act as" inside a doc/comment window is almost always illustrative
+    # prose, not a live injection, so a doc/comment marker SUPPRESSES it. A real
+    # injection ("act as an unrestricted agent", no doc marker) still fires.
+    deny_context: ["//", "#", "<!--", "example", "documentation", "fallback"]
+  - agt_code: "AGT-PI-003"
+    name: "Indirect Prompt Injection"
+    severity: 9
+    signals: ["[[SYSTEM]]", "<!-- inject -->", "IGNORE PREVIOUS CONTEXT", "embedded instruction in document", "tool output contains command"]
+    djl_rules: ["DJL-PI-006", "DJL-PI-007"]
+    # SI-3 (Malicious Code) -> carried SI-7 (Information Integrity); A.12.2 (Malware)
+    # -> carried A.12.1 (Operational Procedures). Both remapped to in-suite controls.
+    maps_to_controls: ["OWASP-LLM:LLM05", "SP800-53:SI-7", "EU-AI-ACT:Art-14", "ISO27001:A.12.1"]
+    asi_xref: ["ASI01", "ASI06"]
+    # MITRE ATLAS (US-F2-1): embedded/[[SYSTEM]] payloads in ingested content are
+    # the textbook Indirect sub-technique of LLM Prompt Injection.
+    atlas_xref: ["AML.T0051", "AML.T0051.001"]
+    default_confidence: 0.9
+    citation: "incident-taxonomy.md:54"
+
+  # --- Data Exfiltration (AGT-EXF) — incident-taxonomy.md:66-68 ---
+  - agt_code: "AGT-EXF-001"
+    name: "Database Dump Request"
+    severity: 9
+    signals: ["SELECT * FROM", "mysqldump", "pg_dump", "export all records", "full table scan", "DUMP DATABASE"]
+    djl_rules: ["DJL-SQLI-001", "DJL-EXF-001"]
+    maps_to_controls: ["SP800-53:AC-3", "SOC2:CC6.1", "GDPR:Art-32", "OWASP-LLM:LLM02"]
+    asi_xref: ["ASI02", "ASI03"]
+    # MITRE ATLAS (US-F2-1): a dump query coerces an agent's DB tool to run an
+    # unexpected query — AI Agent Tool Invocation.
+    atlas_xref: ["AML.T0053"]
+    # EU AI Act (US-F2-3): a wholesale data dump touches the training/operational
+    # data a high-risk system governs — Art-10 data and data governance.
+    eu_ai_act_xref: ["EU-AI-ACT:Art-10"]
+    default_confidence: 0.9
+    citation: "incident-taxonomy.md:66"
+    # US-F1-1: a dump query is an executed command or file content — not a Read
+    # file_path or an arbitrary tool-input field. Scope to Bash inputs + repo
+    # file content (prefix-match on the real source labels).
+    source_kinds: ["session:Bash", "repo-file:"]
+  - agt_code: "AGT-EXF-002"
+    name: "Unauthorized Outbound Network Call"
+    severity: 9
+    signals: ["curl http", "wget http", "requests.get", "fetch(", "non-allowlisted domain", "outbound connection blocked"]
+    djl_rules: ["DJL-EXF-002", "DJL-EXF-003"]
+    # A.13.1 (Network Security) -> carried A.8.16 (Monitoring Activities); SC-7
+    # (Boundary Protection) already carried covers the network-control intent.
+    maps_to_controls: ["SP800-53:SC-7", "SOC2:CC6.6", "ISO27001:A.8.16", "OWASP-LLM:LLM02"]
+    asi_xref: ["ASI02", "ASI04"]
+    # MITRE ATLAS (US-F2-1): an outbound curl/wget/fetch to a non-allowlisted
+    # domain is Exfiltration via Cyber Means.
+    atlas_xref: ["AML.T0025"]
+    # ISO/IEC 42001:2023 Annex A (US-F2-2): an unexpected outbound call is exactly
+    # the kind of runtime behaviour A.6.2.6 (AI system operation and monitoring)
+    # is meant to detect.
+    iso42001_xref: ["ISO42001:A.6.2.6"]
+    default_confidence: 0.9
+    citation: "incident-taxonomy.md:67"
+    # US-F1-1: an outbound call is an executed command or in-file code, not a
+    # file_path or unknown tool field. Scope to Bash inputs + repo file content.
+    source_kinds: ["session:Bash", "repo-file:"]
+  - agt_code: "AGT-EXF-003"
+    name: "PII Aggregation Attack"
+    severity: 8
+    signals: ["join on email", "match by phone", "aggregate across users", "combine records", "link identity"]
+    djl_rules: ["DJL-PII-001", "DJL-EXF-004"]
+    maps_to_controls: ["SP800-53:AC-4", "GDPR:Art-5", "OWASP-LLM:LLM02", "CCPA:1798.100"]
+    asi_xref: ["ASI03"]
+    # EU AI Act (US-F2-3): aggregating/linking records across users is a data
+    # governance concern over the data a high-risk system handles — Art-10.
+    eu_ai_act_xref: ["EU-AI-ACT:Art-10"]
+    default_confidence: 0.8
+    citation: "incident-taxonomy.md:68"
+
+  # --- Tool Misuse (AGT-MIS) — incident-taxonomy.md:80-82 ---
+  - agt_code: "AGT-MIS-001"
+    name: "Destructive Tool Invocation"
+    severity: 10
+    signals: ["rm -rf", "DROP TABLE", "DELETE FROM", "format disk", "truncate", "shred", "wipe"]
+    djl_rules: ["DJL-MIS-001", "DJL-MIS-002"]
+    maps_to_controls: ["SP800-53:SI-7", "EU-AI-ACT:Art-9", "ISO27001:A.12.1"]
+    asi_xref: ["ASI02", "ASI05"]
+    # MITRE ATLAS (US-F2-1): a destructive command (rm -rf, DROP TABLE) is an
+    # agent invoking a tool / a command interpreter destructively.
+    atlas_xref: ["AML.T0053", "AML.T0050"]
+    default_confidence: 0.9
+    citation: "incident-taxonomy.md:80"
+    # US-F1-1: destructive invocations are executed commands or destructive code
+    # in a file, not a Read file_path or arbitrary tool input. Scope to Bash
+    # inputs + repo file content (prefix-match on the real source labels).
+    source_kinds: ["session:Bash", "repo-file:"]
+  - agt_code: "AGT-MIS-002"
+    name: "Privilege Escalation Attempt"
+    severity: 10
+    signals: ["sudo", "su root", "chmod 777", "insmod", "docker --privileged", "nsenter", "kernel exploit"]
+    djl_rules: ["DJL-MIS-003", "DJL-MIS-004"]
+    maps_to_controls: ["SP800-53:AC-6", "SOC2:CC6.1", "EU-AI-ACT:Art-14"]
+    asi_xref: ["ASI03"]
+    # MITRE ATLAS (US-F2-1): sudo / chmod / docker --privileged are commands run
+    # through a scripting interpreter — Command and Scripting Interpreter.
+    atlas_xref: ["AML.T0050"]
+    default_confidence: 0.9
+    citation: "incident-taxonomy.md:81"
+    # US-F1-1: privilege-escalation signals are executed commands or shell-script
+    # file content, not a file_path or unknown tool input. Scope to Bash inputs +
+    # repo file content.
+    source_kinds: ["session:Bash", "repo-file:"]
+  - agt_code: "AGT-MIS-003"
+    name: "Unauthorized Transaction"
+    severity: 8
+    signals: ["merge pull request", "approve without review", "transfer funds", "submit order", "auto-approve"]
+    djl_rules: ["DJL-MIS-005", "DJL-POL-001"]
+    maps_to_controls: ["NIST-AI-RMF:RMF-GOVERN-1.7", "EU-AI-ACT:Art-14", "SOC2:CC9.1", "ISO27001:A.16.1"]
+    asi_xref: ["ASI02"]
+    # MITRE ATLAS (US-F2-1): auto-approving a merge / transfer / order is an agent
+    # invoking a high-impact tool without oversight — AI Agent Tool Invocation.
+    atlas_xref: ["AML.T0053"]
+    # ISO/IEC 42001:2023 Annex A (US-F2-2): an unreviewed high-impact transaction
+    # exceeds A.9.4 intended use and is the kind of event A.8.4 (communication of
+    # incidents) expects to be surfaced to interested parties.
+    iso42001_xref: ["ISO42001:A.9.4", "ISO42001:A.8.4"]
+    default_confidence: 0.8
+    citation: "incident-taxonomy.md:82"
+
+  # --- Financial Misconduct (AGT-FIN) — incident-taxonomy.md:94-95 ---
+  - agt_code: "AGT-FIN-001"
+    name: "High-Value Financial Transfer"
+    severity: 10
+    signals: ["wire transfer", "ACH payment", "high amount", "large transaction", "threshold exceeded", "SWIFT"]
+    djl_rules: ["DJL-MIS-006", "DJL-POL-002"]
+    maps_to_controls: ["PCI-DSS:v4-10.7", "NIST-AI-RMF:RMF-GOVERN-1.7", "SOC2:CC9.1", "EU-AI-ACT:Art-9"]
+    asi_xref: ["ASI02"]
+    default_confidence: 0.9
+    citation: "incident-taxonomy.md:94"
+  - agt_code: "AGT-FIN-002"
+    name: "Financial Fraud Pattern"
+    severity: 9
+    signals: ["structuring", "smurfing", "round-trip", "split transaction", "velocity anomaly", "invoice manipulation"]
+    djl_rules: ["DJL-POL-003"]
+    maps_to_controls: ["PCI-DSS:v4-10.6", "SP800-53:AU-2", "SOC2:CC7.2", "FinCEN:31-CFR-1020"]
+    asi_xref: ["ASI02"]
+    default_confidence: 0.9
+    citation: "incident-taxonomy.md:95"
+
+  # --- Privacy / PII (AGT-PII) — incident-taxonomy.md:107-108 ---
+  - agt_code: "AGT-PII-001"
+    name: "PII Leakage"
+    severity: 8
+    signals: ["SSN", "social security", "date of birth", "home address", "credit card number", "medical record", "passport number"]
+    djl_rules: ["DJL-PII-002", "DJL-PII-003"]
+    maps_to_controls: ["GDPR:Art-5", "CCPA:1798.100", "HIPAA:164.514", "OWASP-LLM:LLM02"]
+    asi_xref: ["ASI03"]
+    # MITRE ATLAS (US-F2-1): surfacing SSN/PII through the model is LLM Data Leakage.
+    atlas_xref: ["AML.T0057"]
+    # ISO/IEC 42001:2023 Annex A (US-F2-2): leaking PII is an adverse A.5.4 impact
+    # of the AI system on individuals or groups.
+    iso42001_xref: ["ISO42001:A.5.4"]
+    # EU AI Act (US-F2-3): mishandling personal data through the system implicates
+    # Art-10 data and data governance for high-risk systems.
+    eu_ai_act_xref: ["EU-AI-ACT:Art-10"]
+    default_confidence: 0.8
+    citation: "incident-taxonomy.md:107"
+  - agt_code: "AGT-PII-002"
+    name: "PII Re-identification / Linkage Attack"
+    severity: 9
+    signals: ["re-identify", "deanonymize", "link records", "quasi-identifier", "k-anonymity violation", "reverse lookup"]
+    djl_rules: ["DJL-PII-004"]
+    maps_to_controls: ["GDPR:Recital-26", "CCPA:1798.140", "ISO27001:A.5.7"]
+    asi_xref: ["ASI03"]
+    # EU AI Act (US-F2-3): re-identification/linkage of quasi-identifiers is a data
+    # governance failure over the data a high-risk system handles — Art-10.
+    eu_ai_act_xref: ["EU-AI-ACT:Art-10"]
+    default_confidence: 0.9
+    citation: "incident-taxonomy.md:108"
+
+  # --- Governance (AGT-GOV) — incident-taxonomy.md:120-122 ---
+  - agt_code: "AGT-GOV-001"
+    name: "Policy Bypass"
+    severity: 8
+    signals: ["policy bypass", "filter circumvented", "deny rule skipped", "content filter evasion", "guardrail disabled"]
+    djl_rules: ["DJL-POL-004", "DJL-POL-005"]
+    maps_to_controls: ["NIST-AI-RMF:RMF-GOVERN-1.1", "SOC2:CC7.3", "EU-AI-ACT:Art-9"]
+    asi_xref: ["ASI01", "ASI10"]
+    # MITRE ATLAS (US-F2-1): disabling a guardrail / evading a content filter is
+    # an LLM Jailbreak (circumventing safety/alignment behaviors).
+    atlas_xref: ["AML.T0054"]
+    # ISO/IEC 42001:2023 Annex A (US-F2-2): bypassing a policy/guardrail breaks the
+    # A.9.2 processes for responsible use of AI systems.
+    iso42001_xref: ["ISO42001:A.9.2"]
+    # EU AI Act (US-F2-3): a silently bypassed guardrail defeats the Art-13
+    # transparency a deployer needs to interpret and use the system appropriately.
+    eu_ai_act_xref: ["EU-AI-ACT:Art-13"]
+    default_confidence: 0.8
+    citation: "incident-taxonomy.md:120"
+  - agt_code: "AGT-GOV-002"
+    name: "Audit Log Tampering"
+    severity: 10
+    signals: ["delete log", "truncate audit", "clear history", "suppress telemetry", "log rotation exploit", "audit bypass"]
+    djl_rules: ["DJL-POL-006"]
+    maps_to_controls: ["SP800-53:AU-9", "SOC2:CC7.3", "ISO27001:A.8.16", "EU-AI-ACT:Art-12"]
+    asi_xref: ["ASI10"]
+    # ISO/IEC 42001:2023 Annex A (US-F2-2): tampering with audit logs directly
+    # undermines A.6.2.8 (AI system recording of event logs), whose purpose is a
+    # traceable, audit-grade event record across the life cycle.
+    iso42001_xref: ["ISO42001:A.6.2.8"]
+    # EU AI Act (US-F2-3): destroying the record/log evidence undercuts the Art-11
+    # technical documentation a high-risk system must keep current and complete for
+    # competent authorities to assess conformity (the doc-evidence mapping).
+    eu_ai_act_xref: ["EU-AI-ACT:Art-11"]
+    default_confidence: 0.9
+    citation: "incident-taxonomy.md:121"
+  - agt_code: "AGT-GOV-003"
+    name: "Human Oversight Bypass"
+    severity: 10
+    signals: ["skip confirmation", "auto-approve high-risk", "bypass HITL", "no human review", "confirmation gate skipped"]
+    djl_rules: ["DJL-POL-007"]
+    maps_to_controls: ["EU-AI-ACT:Art-14", "NIST-AI-RMF:RMF-GOVERN-1.7", "SOC2:CC9.1"]
+    asi_xref: ["ASI09", "ASI10"]
+    # ISO/IEC 42001:2023 Annex A (US-F2-2): skipping human review pushes the system
+    # outside its A.9.4 intended use boundary.
+    iso42001_xref: ["ISO42001:A.9.4"]
+    # EU AI Act (US-F2-3): silently skipping the confirmation/HITL gate hides system
+    # behaviour from the deployer, defeating Art-13 transparency (the deployer can
+    # no longer interpret or appropriately control the output).
+    eu_ai_act_xref: ["EU-AI-ACT:Art-13"]
+    default_confidence: 0.9
+    citation: "incident-taxonomy.md:122"

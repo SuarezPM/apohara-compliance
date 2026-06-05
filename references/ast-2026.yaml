@@ -1,0 +1,86 @@
+# OWASP Agentic Skills Top 10 — AST01..AST10
+#
+# Authored reference data (AC-4, secondary layer). IDs and titles are facts;
+# no OWASP descriptive prose is reproduced (source is CC BY-SA 4.0).
+#
+# Source: OWASP Foundation — "OWASP Agentic Skills Top 10" project.
+#   https://owasp.org/www-project-agentic-skills-top-10/
+#   Canonical title source: the project's consolidated README "Summary Table"
+#   (README.md / project landing-page Summary Table), exa-verified 2026-06-05.
+#
+# title_status semantics (plan §2b, smaller-gap a):
+#   verified   = the title is confirmed against the OWASP project's current
+#                consolidated README / Summary Table.
+#   unverified = the title could NOT be confirmed; title left as a placeholder,
+#                never guessed.
+#
+# NOTE — self-audit use: AST is directly usable to self-audit THIS very skill,
+# because apohara-compliance ships as an AI coding-agent skill (SKILL.md + YAML
+# references). AST01 (Malicious Skills), AST02 (Supply Chain Compromise),
+# AST03 (Over-Privileged Skills), AST04 (Insecure Metadata), and AST05 (Unsafe
+# Deserialization — YAML payload delivery in SKILL.md) apply to this project's
+# own distribution surface and should be reviewed before each release.
+#
+# Provenance caveat: the project is a "New Project Proposal" (active development,
+# v1.0 2026 edition, target v1.0 release Q3 2026). Earlier draft pages
+# (proposal.html, training-certification.html) list divergent titles for
+# AST05/AST06/AST07/AST10; the consolidated README Summary Table is treated as
+# the current authoritative source and is what is recorded as `verified` here.
+#
+# Re-audit (US-F2-3, 2026-06-05): all 10 titles were re-exa-verified against the
+# CURRENT OWASP project README / index.md "The 10 Risks — Summary Table" (and the
+# GitHub OWASP/www-project-agentic-skills-top-10 README.md). All 10 matched the
+# Summary Table verbatim and STAY `title_status: verified`. The divergent titles
+# (AST05 "Insufficient Input Validation", AST06 "Improper Error Handling",
+# AST07 "Insecure Storage", AST10 "MAESTRO Misalignment") appear ONLY on the older
+# training-certification.html topics breakdown, which the file's caveat already
+# rules non-authoritative; none was adopted. No title was downgraded; no title was
+# guessed. Framework status stays `draft` (still a New Project Proposal).
+schema_version: 1
+framework: "OWASP Agentic Skills Top 10"
+version: "2026"
+status: draft  # OWASP "New Project Proposal", active development (v1.0 target Q3 2026)
+source_url: "https://owasp.org/www-project-agentic-skills-top-10/"
+verified_on: "2026-06-05"
+
+risks:
+  - id: AST01
+    title: "Malicious Skills"
+    title_status: verified
+    url: "https://owasp.org/www-project-agentic-skills-top-10/"
+  - id: AST02
+    title: "Supply Chain Compromise"
+    title_status: verified
+    url: "https://owasp.org/www-project-agentic-skills-top-10/"
+  - id: AST03
+    title: "Over-Privileged Skills"
+    title_status: verified
+    url: "https://owasp.org/www-project-agentic-skills-top-10/"
+  - id: AST04
+    title: "Insecure Metadata"
+    title_status: verified
+    url: "https://owasp.org/www-project-agentic-skills-top-10/"
+  - id: AST05
+    title: "Unsafe Deserialization"
+    title_status: verified
+    url: "https://owasp.org/www-project-agentic-skills-top-10/"
+  - id: AST06
+    title: "Weak Isolation"
+    title_status: verified
+    url: "https://owasp.org/www-project-agentic-skills-top-10/"
+  - id: AST07
+    title: "Update Drift"
+    title_status: verified
+    url: "https://owasp.org/www-project-agentic-skills-top-10/"
+  - id: AST08
+    title: "Poor Scanning"
+    title_status: verified
+    url: "https://owasp.org/www-project-agentic-skills-top-10/"
+  - id: AST09
+    title: "No Governance"
+    title_status: verified
+    url: "https://owasp.org/www-project-agentic-skills-top-10/"
+  - id: AST10
+    title: "Cross-Platform Reuse"
+    title_status: verified
+    url: "https://owasp.org/www-project-agentic-skills-top-10/"

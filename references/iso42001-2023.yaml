@@ -1,0 +1,69 @@
+# ISO/IEC 42001:2023 — Annex A control cross-reference layer (US-F2-2, plan Step 2.2)
+#
+# Authored reference data (cross-reference layer, NOT folded into the 49 controls
+# in controls-49.yaml — ISO 42001 is a SEPARATE coverage layer). ISO/IEC 42001
+# text is COPYRIGHTED: only the control CODES and the (factual) objective NAMES /
+# short control titles are reproduced here, PLUS our OWN one-line paraphrase of
+# each control's intent. NO verbatim ISO prose is reproduced (cite-don't-copy
+# principle; the ISO standard's normative text is distributed under ISO/IEC terms
+# and must be purchased from iso.org).
+#
+# Source: ISO/IEC 42001:2023 "Information technology — Artificial intelligence —
+#   Management system", Annex A (normative) "Reference control objectives and
+#   controls". Annex A defines 38 reference controls under 9 control objectives
+#   (A.2–A.10).
+#   Standard page: https://www.iso.org/standard/81230.html
+# Every control id + objective name + short title below was exa-verified on
+# 2026-06-05 against the ISO standard listing and corroborating authoritative
+# summaries (the objective names + control titles are facts about the standard's
+# structure; the `paraphrase` field is our own wording, never ISO prose).
+#
+# Only the session-relevant SUBSET of the 38 controls is carried — the controls
+# that map cleanly to one of the 16 AGT detection rules (see detection-rules.yaml
+# `iso42001_xref`). Controls with no clean AGT mapping are deliberately omitted;
+# no control id is invented.
+schema_version: 1
+framework: "ISO/IEC 42001"
+version: "2023"
+source_url: "https://www.iso.org/standard/81230.html"
+verified_on: "2026-06-05"
+status: official
+
+controls:
+  # A.6 — AI system life cycle (the largest objective; 9 controls).
+  - id: "ISO42001:A.6.2.6"
+    objective: "AI system life cycle"
+    title: "AI system operation and monitoring"
+    paraphrase: "Define how a deployed AI system is run and monitored day-to-day, with clear ownership."
+    source_url: "https://www.iso.org/standard/81230.html"
+  - id: "ISO42001:A.6.2.8"
+    objective: "AI system life cycle"
+    title: "AI system recording of event logs"
+    paraphrase: "Decide which events are logged and at which life-cycle phases so behaviour is traceable for audit and incident response."
+    source_url: "https://www.iso.org/standard/81230.html"
+
+  # A.5 — Assessing impacts of AI systems (4 controls).
+  - id: "ISO42001:A.5.4"
+    objective: "Assessing impacts of AI systems"
+    title: "Assessing AI system impact on individuals or groups"
+    paraphrase: "Evaluate how an AI system can affect individuals or groups of individuals."
+    source_url: "https://www.iso.org/standard/81230.html"
+
+  # A.8 — Information for interested parties of AI systems (4 controls).
+  - id: "ISO42001:A.8.4"
+    objective: "Information for interested parties of AI systems"
+    title: "Communication of incidents"
+    paraphrase: "Establish a way to communicate AI-related incidents to the relevant interested parties."
+    source_url: "https://www.iso.org/standard/81230.html"
+
+  # A.9 — Use of AI systems (3 controls).
+  - id: "ISO42001:A.9.2"
+    objective: "Use of AI systems"
+    title: "Processes for responsible use of AI systems"
+    paraphrase: "Define and operate processes that keep the use of AI systems responsible."
+    source_url: "https://www.iso.org/standard/81230.html"
+  - id: "ISO42001:A.9.4"
+    objective: "Use of AI systems"
+    title: "Intended use of the AI system"
+    paraphrase: "Ensure the AI system is used only in line with its documented intended purpose."
+    source_url: "https://www.iso.org/standard/81230.html"

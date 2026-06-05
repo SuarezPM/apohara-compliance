@@ -1,0 +1,13 @@
+# apohara-compliance — repo ROOT = cargo workspace + plugin root (B2 layout).
+# The skill lives in skills/apohara-compliance/; canonical rule/mapping data in references/.
+[workspace]
+members = ["crates/scanner"]
+resolver = "2"
+
+[workspace.package]
+# Dual license: the Rust ecosystem convention. NOT a single LICENSE.
+license = "MIT OR Apache-2.0"
+edition = "2021"
+authors = ["Pablo M. Suarez"]
+repository = "https://github.com/SuarezPM/apohara-compliance"
+rust-version = "1.74"

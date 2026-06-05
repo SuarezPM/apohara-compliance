@@ -1,0 +1,82 @@
+# ASI -> LLM crosswalk (AC-6)
+#
+# CANONICAL SOURCE: OWASP's OWN "Appendix A - OWASP Agentic AI Security Mapping
+# Matrix" inside the official "OWASP Top 10 for Agentic Applications 2026"
+# document (Version 2026, December 2025), page 39.
+#   Document PDF: https://genai.owasp.org/download/52117/
+#   Landing page: https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/
+#
+# PROVENANCE DECISION (plan §2d contingency, AC-6):
+#   OWASP DOES publish a complete ASI->LLM mapping in Appendix A. The matrix was
+#   exa-fetched directly from OWASP's own document on 2026-06-05 and every row
+#   below is transcribed from the "OWASP LLM Top 10 (2025)" column of that
+#   matrix. Therefore AC-6's word "official" HOLDS and NO escalation to the user
+#   is required. provenance: official-owasp-appendix-a for all rows.
+#
+#   Third-party crosswalk tables (DeepTeam, Promptfoo, trent.ai,
+#   GenAI-Security-Crosswalk) were deliberately NOT used — they disagree with
+#   each other and with OWASP. Only OWASP's Appendix A is the source here.
+#
+# The mapped LLM IDs reference the OWASP Top 10 for LLM Applications 2025
+# (version "2025"; "2026" is only a community label — see controls-49.yaml).
+# Only IDs/titles are reproduced (facts); no OWASP prose (CC BY-SA 4.0).
+schema_version: 1
+source: "OWASP Top 10 for Agentic Applications 2026 — Appendix A (OWASP Agentic AI Security Mapping Matrix)"
+source_version: "2026"
+source_document_url: "https://genai.owasp.org/download/52117/"
+source_page: 39
+verified_on: "2026-06-05"
+provenance: official-owasp-appendix-a
+llm_framework_version: "2025"
+
+crosswalk:
+  - asi_id: ASI01
+    asi_title: "Agent Goal Hijack"
+    llm_ids: ["LLM01:2025", "LLM06:2025"]
+    llm_titles: ["Prompt Injection", "Excessive Agency"]
+    provenance: official-owasp-appendix-a
+  - asi_id: ASI02
+    asi_title: "Tool Misuse & Exploitation"
+    llm_ids: ["LLM06:2025"]
+    llm_titles: ["Excessive Agency"]
+    provenance: official-owasp-appendix-a
+  - asi_id: ASI03
+    asi_title: "Identity & Privilege Abuse"
+    llm_ids: ["LLM01:2025", "LLM06:2025", "LLM02:2025"]
+    llm_titles: ["Prompt Injection", "Excessive Agency", "Sensitive Information Disclosure"]
+    provenance: official-owasp-appendix-a
+  - asi_id: ASI04
+    asi_title: "Agentic Supply Chain Vulnerabilities"
+    llm_ids: ["LLM03:2025"]
+    llm_titles: ["Supply Chain"]
+    provenance: official-owasp-appendix-a
+  - asi_id: ASI05
+    asi_title: "Unexpected Code Execution"
+    llm_ids: ["LLM01:2025", "LLM05:2025"]
+    llm_titles: ["Prompt Injection", "Improper Output Handling"]
+    provenance: official-owasp-appendix-a
+  - asi_id: ASI06
+    asi_title: "Memory & Context Poisoning"
+    llm_ids: ["LLM01:2025", "LLM04:2025", "LLM08:2025"]
+    llm_titles: ["Prompt Injection", "Data and Model Poisoning", "Vector and Embedding Weaknesses"]
+    provenance: official-owasp-appendix-a
+  - asi_id: ASI07
+    asi_title: "Insecure Inter-Agent Communication"
+    llm_ids: ["LLM02:2025", "LLM06:2025"]
+    llm_titles: ["Sensitive Information Disclosure", "Excessive Agency"]
+    provenance: official-owasp-appendix-a
+  - asi_id: ASI08
+    asi_title: "Cascading Failures"
+    llm_ids: ["LLM01:2025", "LLM04:2025", "LLM06:2025"]
+    llm_titles: ["Prompt Injection", "Data and Model Poisoning", "Excessive Agency"]
+    provenance: official-owasp-appendix-a
+  - asi_id: ASI09
+    asi_title: "Human-Agent Trust Exploitation"
+    llm_ids: ["LLM01:2025", "LLM05:2025", "LLM06:2025", "LLM09:2025"]
+    llm_titles: ["Prompt Injection", "Improper Output Handling", "Excessive Agency", "Misinformation"]
+    provenance: official-owasp-appendix-a
+  - asi_id: ASI10
+    asi_title: "Rogue Agents"
+    llm_ids: ["LLM02:2025", "LLM09:2025"]
+    llm_titles: ["Sensitive Information Disclosure", "Misinformation"]
+    provenance: official-owasp-appendix-a

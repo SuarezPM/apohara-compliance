@@ -1,0 +1,70 @@
+# OWASP Top 10 for Agentic Applications (2026 edition) — ASI01..ASI10
+#
+# Authored reference data (AC-3, primary layer). IDs, titles, and URLs are
+# facts (not copyrightable); no OWASP descriptive prose is reproduced here
+# (the source document is CC BY-SA 4.0 — cite-don't-copy principle).
+#
+# Source: OWASP Gen AI Security Project — Agentic Security Initiative.
+#   "OWASP Top 10 for Agentic Applications 2026", Version 2026, December 2025.
+#   Landing page: https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/
+#   Document PDF: https://genai.owasp.org/download/52117/
+# Every ID+title was exa-verified against genai.owasp.org on 2026-06-05.
+schema_version: 1
+framework: "OWASP Top 10 for Agentic Applications"
+version: "2026"
+status: official
+source_url: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+document_url: "https://genai.owasp.org/download/52117/"
+verified_on: "2026-06-05"
+
+risks:
+  - id: ASI01
+    title: "Agent Goal Hijack"
+    url: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    version: "2026"
+    status: official
+  - id: ASI02
+    title: "Tool Misuse & Exploitation"
+    url: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    version: "2026"
+    status: official
+  - id: ASI03
+    title: "Identity & Privilege Abuse"
+    url: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    version: "2026"
+    status: official
+  - id: ASI04
+    title: "Agentic Supply Chain Vulnerabilities"
+    url: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    version: "2026"
+    status: official
+  - id: ASI05
+    title: "Unexpected Code Execution"
+    url: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    version: "2026"
+    status: official
+  - id: ASI06
+    title: "Memory & Context Poisoning"
+    url: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    version: "2026"
+    status: official
+  - id: ASI07
+    title: "Insecure Inter-Agent Communication"
+    url: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    version: "2026"
+    status: official
+  - id: ASI08
+    title: "Cascading Failures"
+    url: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    version: "2026"
+    status: official
+  - id: ASI09
+    title: "Human-Agent Trust Exploitation"
+    url: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    version: "2026"
+    status: official
+  - id: ASI10
+    title: "Rogue Agents"
+    url: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    version: "2026"
+    status: official

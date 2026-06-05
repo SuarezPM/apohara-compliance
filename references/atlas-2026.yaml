@@ -1,0 +1,58 @@
+# MITRE ATLAS — technique cross-reference layer (US-F2-1, plan Step 2.1)
+#
+# Authored reference data (cross-reference layer, NOT folded into the 49 controls
+# in controls-49.yaml — ATLAS is a separate coverage layer). Only technique IDs,
+# names, and URLs are reproduced (facts; not copyrightable). NO MITRE descriptive
+# prose is reproduced here (cite-don't-copy principle; MITRE ATLAS content is
+# distributed under MITRE's terms).
+#
+# Source: MITRE ATLAS™ ("Adversarial Threat Landscape for AI Systems").
+#   Site: https://atlas.mitre.org/
+#   Machine-readable data: https://github.com/mitre-atlas/atlas-data
+#   Canonical YAML (this layer's authoritative source): dist/ATLAS.yaml.
+# Every ID+name below was exa-verified against the canonical ATLAS.yaml at
+# data version 5.6.0 on 2026-06-05 (each id appears in that file with the name
+# transcribed verbatim; no other field is copied).
+schema_version: 1
+framework: "MITRE ATLAS"
+version: "5.6.0"
+source_url: "https://atlas.mitre.org/"
+data_url: "https://github.com/mitre-atlas/atlas-data"
+verified_on: "2026-06-05"
+
+# Only techniques that map to one of the 16 AGT detection rules are carried.
+# AGT families with no clean ATLAS technique are deliberately left unmapped (see
+# detection-rules.yaml `atlas_xref`); no technique id is invented.
+techniques:
+  - id: AML.T0051
+    name: "LLM Prompt Injection"
+    url: "https://atlas.mitre.org/techniques/AML.T0051"
+    status: official
+  - id: AML.T0051.000
+    name: "Direct"
+    url: "https://atlas.mitre.org/techniques/AML.T0051.000"
+    status: official
+  - id: AML.T0051.001
+    name: "Indirect"
+    url: "https://atlas.mitre.org/techniques/AML.T0051.001"
+    status: official
+  - id: AML.T0054
+    name: "LLM Jailbreak"
+    url: "https://atlas.mitre.org/techniques/AML.T0054"
+    status: official
+  - id: AML.T0053
+    name: "AI Agent Tool Invocation"
+    url: "https://atlas.mitre.org/techniques/AML.T0053"
+    status: official
+  - id: AML.T0050
+    name: "Command and Scripting Interpreter"
+    url: "https://atlas.mitre.org/techniques/AML.T0050"
+    status: official
+  - id: AML.T0025
+    name: "Exfiltration via Cyber Means"
+    url: "https://atlas.mitre.org/techniques/AML.T0025"
+    status: official
+  - id: AML.T0057
+    name: "LLM Data Leakage"
+    url: "https://atlas.mitre.org/techniques/AML.T0057"
+    status: official

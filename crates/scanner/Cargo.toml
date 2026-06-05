@@ -1,0 +1,50 @@
+[package]
+name = "apohara-compliance-scanner"
+version = "0.3.0"
+description = "Deterministic scanner that maps coding-agent actions or a repository to compliance/security framework controls, surfacing candidates (never asserting). Part of the apohara-compliance agent-compliance skill."
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+keywords = ["compliance", "owasp", "agentic", "security", "sarif"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "apohara-compliance-scanner"
+path = "src/main.rs"
+
+[dependencies]
+# US-003 (rules engine): serde + a maintained serde_yaml fork for the YAML rule
+# files, serde_json for the own-JSON report, clap for the CLI surface.
+# `serde_yaml`/`serde_yml` are both deprecated/unmaintained; `serde_norway` is
+# the actively maintained drop-in fork with the same API.
+# US-004 may add walkdir etc. for the repo/session parsers.
+serde = { version = "1.0.228", features = ["derive"] }
+serde_norway = "0.9.42"
+serde_json = "1.0.150"
+clap = { version = "4.6.1", features = ["derive"] }
+# US-004: tolerant session/repo parsing.
+#   * serde_json::Value drives the schema-flexible NDJSON session reader.
+#   * `ignore` walks a repo respecting .gitignore (proves gitignore-respect).
+ignore = "0.4.23"
+# US-F0-2: conditional word-boundary matching. `regex` replaces the naive
+# substring matcher; each signal compiles once (per rule-load) into a
+# case-insensitive, conditionally-\b-anchored pattern that de-noises substring
+# FPs (e.g. `truncate` in "truncated") while leaving non-word-edged signals
+# (e.g. `[[SYSTEM]]`, `fetch(`) behaving like the prior substring check.
+regex = "1.12.3"
+# US-F1-2: `.apohara-compliance.toml` config (thresholds + [[suppress]] +
+# [severity]). Parse-only (no `display`/serialize) to keep the dep tree minimal;
+# we only DESERIALIZE config, never write it. `toml` 0.8 declares rust-version
+# 1.66, comfortably under the workspace MSRV 1.74.
+toml = { version = "0.8.23", default-features = false, features = ["parse"] }
+
+[dev-dependencies]
+# Resolution-ladder tests build temp rule dirs to assert CLI/env/embedded precedence.
+tempfile = "3.27.0"
+# US-F1-5 precision/recall harness: read detection-rules.yaml signals for the
+# substring baseline. `serde_norway` is the SAME fork the binary already depends
+# on, so this adds NO new crate to the dependency tree (corpus JSON is parsed
+# with serde_json, already a normal dependency).
+serde_norway = "0.9.42"
