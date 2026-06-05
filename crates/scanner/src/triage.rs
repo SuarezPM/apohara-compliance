@@ -19,6 +19,10 @@ use crate::model::Report;
 /// Versioned schema tag so a consumer can pin the manifest shape.
 const MANIFEST_SCHEMA: &str = "apohara-triage-manifest/1";
 
+/// Candidate-framing note — these are borderline CANDIDATES to review, never
+/// assertions. Worded to stay clear of the assertive-vocabulary guard.
+const MANIFEST_NOTE: &str = "ambiguous CANDIDATES to triage — review before acting, never an assertion";
+
 /// stderr line prefix the orchestrator greps for to extract the manifest JSON.
 /// Kept distinct from the `match:`/`suppressed:`/`skip:` audit lines.
 const MANIFEST_PREFIX: &str = "apohara-compliance-scanner: llm-assist-manifest: ";
@@ -37,21 +41,16 @@ struct TriageCandidate<'a> {
 #[derive(Debug, Serialize)]
 struct TriageManifest<'a> {
     schema: &'static str,
-    /// Candidate-framing note — these are borderline CANDIDATES to review, never
-    /// assertions. Worded to stay clear of the assertive-vocabulary guard.
     note: &'static str,
     candidates: Vec<TriageCandidate<'a>>,
 }
 
-/// Emit the triage manifest to stderr (US-F3-1). Called ONLY when `--llm-assist`
-/// is set, so a run without the flag adds nothing to stderr (byte-shape preserved).
-///
-/// Selects the ACTIVE findings with `ambiguity == true` and writes a single JSON
-/// line prefixed with [`MANIFEST_PREFIX`]. An empty candidate set still emits a
-/// well-formed, empty manifest so the consumer can distinguish "ran, nothing
-/// ambiguous" from "did not run".
-pub fn emit_manifest(report: &Report) {
-    let candidates: Vec<TriageCandidate> = report
+/// Build the manifest from a report: the ACTIVE findings flagged
+/// `ambiguity == true`, borrowed (no clone). The single source of the manifest
+/// shape shared by [`emit_manifest`] and the tests, so a test verifies the real
+/// selection logic rather than a re-implementation.
+fn build_manifest(report: &Report) -> TriageManifest<'_> {
+    let candidates = report
         .findings
         .iter()
         .filter(|f| f.ambiguity)
@@ -63,13 +62,21 @@ pub fn emit_manifest(report: &Report) {
             suggested_controls: &f.suggested_controls,
         })
         .collect();
-
-    let manifest = TriageManifest {
+    TriageManifest {
         schema: MANIFEST_SCHEMA,
-        note: "ambiguous CANDIDATES to triage — review before acting, never an assertion",
+        note: MANIFEST_NOTE,
         candidates,
-    };
+    }
+}
 
+/// Emit the triage manifest to stderr (US-F3-1). Called ONLY when `--llm-assist`
+/// is set, so a run without the flag adds nothing to stderr (byte-shape preserved).
+///
+/// Writes a single JSON line prefixed with [`MANIFEST_PREFIX`]. An empty candidate
+/// set still emits a well-formed, empty manifest so the consumer can distinguish
+/// "ran, nothing ambiguous" from "did not run".
+pub fn emit_manifest(report: &Report) {
+    let manifest = build_manifest(report);
     match serde_json::to_string(&manifest) {
         Ok(json) => eprintln!("{MANIFEST_PREFIX}{json}"),
         // A plain serializable struct cannot realistically fail; stay non-fatal.
@@ -114,25 +121,7 @@ mod tests {
         // There is at least one ambiguous active candidate.
         assert!(report.findings.iter().any(|f| f.ambiguity));
 
-        // Re-create the manifest the emitter would build (the emitter prints to
-        // stderr; here we assert the serialized payload it produces).
-        let candidates: Vec<TriageCandidate> = report
-            .findings
-            .iter()
-            .filter(|f| f.ambiguity)
-            .map(|f| TriageCandidate {
-                id: &f.id,
-                title: &f.title,
-                triggering_signal: &f.triggering_signal,
-                confidence: f.confidence,
-                suggested_controls: &f.suggested_controls,
-            })
-            .collect();
-        let manifest = TriageManifest {
-            schema: MANIFEST_SCHEMA,
-            note: "ambiguous CANDIDATES to triage — review before acting, never an assertion",
-            candidates,
-        };
+        let manifest = build_manifest(&report);
         let json = serde_json::to_string(&manifest).expect("serialize");
 
         // Schema tag present.
@@ -141,8 +130,8 @@ mod tests {
         assert!(json.contains("AGT-PI-002"), "json={json}");
         // Every manifest id is a subset of the active findings (no fabricated id).
         let active_ids: Vec<&str> = report.findings.iter().map(|f| f.id.as_str()).collect();
-        for f in report.findings.iter().filter(|f| f.ambiguity) {
-            assert!(active_ids.contains(&f.id.as_str()));
+        for c in &manifest.candidates {
+            assert!(active_ids.contains(&c.id), "manifest id {} not active", c.id);
         }
         // Honesty: no assertive vocabulary leaks into the manifest payload.
         for banned in [
@@ -168,11 +157,9 @@ mod tests {
         let outcome = match_actions_with_suppress(&actions, &rules, &SuppressList::default());
         let report = Report::with_suppressed(rules.source, outcome.findings, outcome.suppressed);
         assert!(!report.findings.iter().any(|f| f.ambiguity));
-        let manifest = TriageManifest {
-            schema: MANIFEST_SCHEMA,
-            note: "ambiguous CANDIDATES to triage — review before acting, never an assertion",
-            candidates: Vec::new(),
-        };
+
+        let manifest = build_manifest(&report);
+        assert!(manifest.candidates.is_empty());
         let json = serde_json::to_string(&manifest).expect("serialize");
         assert!(json.contains("\"candidates\":[]"), "json={json}");
     }

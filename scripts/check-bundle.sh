@@ -28,14 +28,20 @@ if [[ "${1:-}" == "--check" ]]; then
   CHECK_ONLY=1
 fi
 
-# The exact YAML files the scanner loads (crates/scanner/src/rules.rs).
+# The exact YAML files the scanner loads (crates/scanner/src/rules.rs). ALL 8 must
+# ship in the bundle: load_from_dir() reads every one and a missing file is a LOUD
+# error (exit 1), NOT a fall-through to embedded — so validating a subset would let
+# a bundle that drops atlas/iso42001/eu-ai-act hard-error at runtime.
 # detection-rules.yaml is the marker file is_rules_dir() looks for.
 RULE_FILES=(
   asi-2026.yaml
   ast-2026.yaml
+  atlas-2026.yaml
   controls-49.yaml
   crosswalk-asi-llm.yaml
   detection-rules.yaml
+  eu-ai-act-2024.yaml
+  iso42001-2023.yaml
 )
 
 CANONICAL_REFS="${ROOT}/references"
