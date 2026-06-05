@@ -572,6 +572,39 @@ else
   pass "--llm-assist manifest NEGATIVE guard (no forbidden strings)"
 fi
 
+echo "== scan-action single-string match + live-hook honesty (US-F3-2 / Step 3.2) =="
+# scan-action matches ONE string with no file/session read. A destructive command
+# surfaces AGT-MIS-002 (sudo) + AGT-MIS-001 (rm -rf) as CANDIDATEs.
+"$BIN" scan-action "sudo rm -rf /var/cache" --format json  > /tmp/ac_act_json.out  2>/dev/null
+"$BIN" scan-action "sudo rm -rf /var/cache" --format md    > /tmp/ac_act_md.out    2>/dev/null
+"$BIN" scan-action "sudo rm -rf /var/cache" --format sarif > /tmp/ac_act_sarif.out 2>/dev/null
+python3 - <<'PY' && pass "scan-action surfaces AGT-MIS-001 + AGT-MIS-002 candidates; SARIF note/warning + CANDIDATE—" || bad "scan-action matching"
+import json
+j = json.load(open('/tmp/ac_act_json.out'))
+ids = {f['id'] for f in j['findings']}
+assert 'AGT-MIS-001' in ids and 'AGT-MIS-002' in ids, f"expected MIS-001+MIS-002, got {ids}"
+assert all(f['is_candidate'] is True for f in j['findings'])
+s = json.load(open('/tmp/ac_act_sarif.out'))
+for r in s['runs'][0]['results']:
+    assert r['level'] in ('note','warning'), r['level']
+    assert r['message']['text'].startswith('CANDIDATE — '), r['message']['text'][:40]
+PY
+if grep -Eiq "$NEGATIVE_GUARD" /tmp/ac_act_md.out /tmp/ac_act_sarif.out; then
+  bad "scan-action assertive-language NEGATIVE guard (found forbidden string)"
+else
+  pass "scan-action assertive-language NEGATIVE guard (no forbidden strings)"
+fi
+if grep -E '^- ' /tmp/ac_act_md.out | grep -qvE 'CANDIDATE —'; then
+  bad "scan-action POSITIVE guard (a finding line lacks CANDIDATE prefix)"
+else
+  pass "scan-action POSITIVE guard (every MD finding line CANDIDATE-prefixed)"
+fi
+if bash -n scripts/hooks/pretooluse-scan-action.sh; then
+  pass "PreToolUse hook script parses (bash -n)"
+else
+  bad "PreToolUse hook script has a syntax error"
+fi
+
 echo "== Gap analysis over the 49 carried controls (US-F1-4 / fix #11d) =="
 # RAC-1.7: `gap` lists controls (from the 49 ONLY) with zero candidate evidence,
 # absence-framed; the output carries the absence-of-evidence disclaimer + the

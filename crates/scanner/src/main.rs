@@ -29,7 +29,7 @@ use clap::Parser;
 
 use cli::{Cli, Command, OutputFormat};
 use config::Config;
-use matching::{asi_companions, match_actions_with_suppress};
+use matching::{asi_companions, match_actions_with_suppress, ObservedAction};
 use model::{Report, SuppressedFinding, SuppressionOrigin};
 use rules::RuleData;
 use suppress::SuppressList;
@@ -86,6 +86,7 @@ fn main() -> ExitCode {
             }
         },
         Command::ScanRepo { path, ext } => run_scan_repo(path, ext, &data, &suppress),
+        Command::ScanAction { action, kind } => run_scan_action(action, kind, &data, &suppress),
         Command::Gap { path } => match run_scan_for_gap(path, &data, &suppress) {
             Ok(r) => r,
             Err(err) => {
@@ -254,6 +255,8 @@ fn scan_target_dir(cli: &Cli) -> Option<PathBuf> {
                 Some(path.clone())
             }
         }
+        // scan-action reads no target path; beside-discovery falls back to cwd.
+        Command::ScanAction { .. } => None,
     }
 }
 
@@ -453,6 +456,22 @@ fn run_scan_repo(
     Report::with_suppressed(data.source, outcome.findings, outcome.suppressed)
 }
 
+/// Match a SINGLE observed action string against the rules (US-F3-2 / Step 3.2),
+/// reading NO file or session transcript. Built for a live PreToolUse hook: the
+/// pending command/path is fed as one [`ObservedAction`] whose `source` is `kind`
+/// (default `session:Bash.input`), so each rule's `source_kinds` PREFIX filter
+/// behaves exactly as it would on a real session action. The output then flows
+/// through the same threshold/by-asi/baseline/format pipeline as scan-session.
+fn run_scan_action(action: &str, kind: &str, data: &RuleData, suppress: &SuppressList) -> Report {
+    let observed = ObservedAction::new(kind.to_string(), action.to_string());
+    let outcome = match_actions_with_suppress(std::slice::from_ref(&observed), data, suppress);
+    eprintln!(
+        "apohara-compliance-scanner: scan-action: matched 1 observed action ({kind})"
+    );
+    log_outcome(1, outcome.findings.len(), outcome.suppressed.len());
+    Report::with_suppressed(data.source, outcome.findings, outcome.suppressed)
+}
+
 fn log_outcome(actions: usize, findings: usize, suppressed: usize) {
     eprintln!(
         "apohara-compliance-scanner: matched {actions} observed action(s) → {findings} \
@@ -472,6 +491,59 @@ mod tests {
         let outcome = match_actions_with_suppress(&actions, &data, &SuppressList::default());
         let report = Report::with_suppressed(data.source, outcome.findings, outcome.suppressed);
         (report, data)
+    }
+
+    #[test]
+    fn scan_action_fires_mis_candidates_and_matches_session_action() {
+        // US-F3-2: scan-action on a destructive command surfaces AGT-MIS-002 (sudo)
+        // AND AGT-MIS-001 (rm -rf) — identical to feeding the same string as a
+        // session:Bash.input action — and reads no file (a pure in-memory match).
+        let data = load_embedded().expect("embedded rules");
+        let report = run_scan_action(
+            "sudo rm -rf /var/cache",
+            "session:Bash.input",
+            &data,
+            &SuppressList::default(),
+        );
+        let ids: Vec<&str> = report.findings.iter().map(|f| f.id.as_str()).collect();
+        assert!(ids.contains(&"AGT-MIS-001"), "rm -rf must fire AGT-MIS-001; got {ids:?}");
+        assert!(ids.contains(&"AGT-MIS-002"), "sudo must fire AGT-MIS-002; got {ids:?}");
+        // Honesty invariant on every candidate.
+        assert!(report.findings.iter().all(|f| f.is_candidate));
+
+        // Equivalence to the session-action path (same source, same value).
+        let actions = vec![ObservedAction::new("session:Bash.input", "sudo rm -rf /var/cache")];
+        let outcome = match_actions_with_suppress(&actions, &data, &SuppressList::default());
+        let mut via_action: Vec<&str> = ids.clone();
+        let mut via_session: Vec<&str> = outcome.findings.iter().map(|f| f.id.as_str()).collect();
+        via_action.sort_unstable();
+        via_session.sort_unstable();
+        assert_eq!(via_action, via_session, "scan-action must equal the session path");
+    }
+
+    #[test]
+    fn scan_action_kind_scopes_via_source_kinds_prefix() {
+        // The --kind label drives the source_kinds prefix filter: an EXF rule
+        // scoped to ["session:Bash","repo-file:"] does NOT fire under an unrelated
+        // source kind, exactly as on a real session action.
+        let data = load_embedded().expect("embedded rules");
+        let unscoped = run_scan_action(
+            "SELECT * FROM users",
+            "session:Bash.input",
+            &data,
+            &SuppressList::default(),
+        );
+        assert!(unscoped.findings.iter().any(|f| f.id == "AGT-EXF-001"));
+        let wrong_kind = run_scan_action(
+            "SELECT * FROM users",
+            "webhook:other",
+            &data,
+            &SuppressList::default(),
+        );
+        assert!(
+            !wrong_kind.findings.iter().any(|f| f.id == "AGT-EXF-001"),
+            "EXF-001 is source-scoped; an unrelated kind must not fire it"
+        );
     }
 
     #[test]

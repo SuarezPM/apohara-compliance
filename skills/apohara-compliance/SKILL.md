@@ -103,8 +103,9 @@ embedded-fallback` is expected and correct there.
 
 ## Usage / orchestration
 
-Two subcommands. The path is a positional argument; `--rules-dir` and `--format`
-are global flags.
+The scanner exposes `scan-session`, `scan-repo`, `gap`, and `scan-action`
+subcommands. For the file-based commands the path is a positional argument;
+`--rules-dir` and `--format` are global flags.
 
 ### Scan an AI coding-agent session transcript
 
@@ -126,6 +127,34 @@ apohara-compliance-scanner scan-repo /path/to/repo --format json
 
 This walks the repository (respecting `.gitignore`) and matches file
 contents/paths against the same rule set.
+
+### Match a single action in the moment (live PreToolUse hook)
+
+`scan-action` matches ONE observed-action string against the rules without
+reading any file or session transcript — built to run inside a coding-agent's
+`PreToolUse` hook so a candidate surfaces *before* the action executes:
+
+```bash
+apohara-compliance-scanner scan-action "sudo rm -rf /var/cache" --format md
+# → CANDIDATE — AGT-MIS-002 (sudo) and AGT-MIS-001 (rm -rf), for review
+```
+
+`--kind <SOURCE>` (default `session:Bash.input`) is the source label matched
+against each rule's `source_kinds` prefix filter, so scoping behaves exactly as
+on a real session action; use e.g. `--kind session:Write.input` to scan a file
+path.
+
+A ready-to-install hook ships at `scripts/hooks/pretooluse-scan-action.sh`. It
+is **warn-not-block by default**: it prints any candidate to stderr and exits 0,
+so the command still runs — a candidate is a "please review", never a verdict
+that the command is malicious. Set `APOHARA_BLOCK_ON` to opt into blocking the
+tool call for human review. Wire it in `.claude/settings.json`:
+
+```jsonc
+"hooks": { "PreToolUse": [ { "matcher": "Bash", "hooks": [
+  { "type": "command",
+    "command": "/abs/path/to/scripts/hooks/pretooluse-scan-action.sh" } ] } ] }
+```
 
 ### Output formats
 

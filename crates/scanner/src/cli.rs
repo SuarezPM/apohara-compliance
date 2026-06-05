@@ -125,4 +125,20 @@ pub enum Command {
         /// Path to a `.jsonl` session transcript OR a repository root.
         path: PathBuf,
     },
+    /// Match a SINGLE observed action string against the rules WITHOUT reading any
+    /// file or session transcript (US-F3-2 / Step 3.2). Built for a live
+    /// PreToolUse hook: feed the about-to-run command/path as one action and get
+    /// any CANDIDATE back BEFORE it executes. Honesty: the result is a candidate,
+    /// never a verdict — warn, do not block (the hook decides whether to block).
+    ScanAction {
+        /// The single observed action string (e.g. a pending Bash command).
+        action: String,
+        /// The observed-action source label, matched against each rule's
+        /// `source_kinds` PREFIX filter (matching.rs). Default `session:Bash.input`
+        /// — the hook's common case, a pending Bash command — so the rule scoping
+        /// behaves exactly as on a real session action. Use e.g.
+        /// `session:Write.input` to scan a file path.
+        #[arg(long, default_value = "session:Bash.input")]
+        kind: String,
+    },
 }
