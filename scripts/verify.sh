@@ -605,6 +605,21 @@ else
   bad "PreToolUse hook script has a syntax error"
 fi
 
+echo "== Offline thesis: no outbound HTTP in the core + adoption doc (US-F3-3 / Step 3.3) =="
+# The scanner reads from disk only and phones nothing home. Fail if any HTTP /
+# network client appears in the crate manifest or sources (a telemetry surface
+# would contradict the lowest-trust-assumption thesis the tool itself sells).
+if grep -rniE 'reqwest|ureq|\bhyper\b|isahc|\bsurf\b|attohttpc|std::net::|TcpStream|TcpListener' crates/scanner/Cargo.toml crates/scanner/src/; then
+  bad "offline guard: an HTTP/network client appears in the crate (telemetry surface)"
+else
+  pass "offline guard: no outbound-HTTP / network client in Cargo.toml or src"
+fi
+if [ -f docs/adoption.md ] && ! grep -Eiq "$NEGATIVE_GUARD" docs/adoption.md; then
+  pass "docs/adoption.md present and free of assertive vocabulary"
+else
+  bad "docs/adoption.md missing or contains assertive vocabulary"
+fi
+
 echo "== Gap analysis over the 49 carried controls (US-F1-4 / fix #11d) =="
 # RAC-1.7: `gap` lists controls (from the 49 ONLY) with zero candidate evidence,
 # absence-framed; the output carries the absence-of-evidence disclaimer + the
