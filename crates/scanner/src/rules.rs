@@ -45,34 +45,36 @@ const DETECTION_FILE: &str = "detection-rules.yaml";
 
 // --- Build-time embedded copies, sourced FROM the canonical references/ (R6) ---
 //
-// CARGO_MANIFEST_DIR is crates/scanner, so ../../references is the repo-root
-// `references/` — the single canonical source. This guarantees the embedded
-// bytes equal the canonical YAML at build time (the drift test asserts this).
+// CARGO_MANIFEST_DIR is crates/scanner; `references/` is the canonical source
+// dir vendored INSIDE the crate (so `cargo package`/`cargo install` ships it),
+// with the repo-root `references/` a symlink to it — ONE physical copy. This
+// guarantees the embedded bytes equal the canonical YAML at build time (the
+// drift test asserts this).
 const EMBEDDED_ASI: &str =
-    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../references/asi-2026.yaml"));
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/references/asi-2026.yaml"));
 const EMBEDDED_AST: &str =
-    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../references/ast-2026.yaml"));
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/references/ast-2026.yaml"));
 const EMBEDDED_ATLAS: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../references/atlas-2026.yaml"
+    "/references/atlas-2026.yaml"
 ));
 const EMBEDDED_ISO42001: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../references/iso42001-2023.yaml"
+    "/references/iso42001-2023.yaml"
 ));
 const EMBEDDED_EU_AI_ACT: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../references/eu-ai-act-2024.yaml"
+    "/references/eu-ai-act-2024.yaml"
 ));
 const EMBEDDED_CONTROLS: &str =
-    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../references/controls-49.yaml"));
+    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/references/controls-49.yaml"));
 const EMBEDDED_CROSSWALK: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../references/crosswalk-asi-llm.yaml"
+    "/references/crosswalk-asi-llm.yaml"
 ));
 const EMBEDDED_DETECTION: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../references/detection-rules.yaml"
+    "/references/detection-rules.yaml"
 ));
 
 /// Error returned while resolving/loading rules.
@@ -547,9 +549,10 @@ mod tests {
     use std::path::PathBuf;
     use tempfile::TempDir;
 
-    /// Repo-root `references/` directory (CARGO_MANIFEST_DIR = crates/scanner).
+    /// Canonical `references/` dir, vendored inside the crate (CARGO_MANIFEST_DIR
+    /// = crates/scanner). The repo-root `references/` is a symlink to this.
     fn canonical_references_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../references")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("references")
     }
 
     /// Copy the canonical references into a temp dir so tests can mutate a header
