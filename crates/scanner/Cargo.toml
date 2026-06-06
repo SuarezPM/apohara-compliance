@@ -27,7 +27,7 @@ clap = { version = "4.6.1", features = ["derive"] }
 # US-004: tolerant session/repo parsing.
 #   * serde_json::Value drives the schema-flexible NDJSON session reader.
 #   * `ignore` walks a repo respecting .gitignore (proves gitignore-respect).
-ignore = "0.4.23"
+ignore = "0.4.26"
 # US-F0-2: conditional word-boundary matching. `regex` replaces the naive
 # substring matcher; each signal compiles once (per rule-load) into a
 # case-insensitive, conditionally-\b-anchored pattern that de-noises substring
