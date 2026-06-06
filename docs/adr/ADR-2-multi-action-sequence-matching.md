@@ -1,6 +1,7 @@
 # ADR-2 — Multi-action (sequence/taint) matching for ASI06
 
-**Status:** Proposed (pending approval) · **Date:** 2026-06-06 · **Supersedes:** none
+**Status:** Accepted — design, Rev 2 (amendments A–E folded from architect design review) ·
+**Date:** 2026-06-06 · **Supersedes:** none
 **Extends:** ADR-1 (the CLOSED 3-field context DSL — `source_kinds` / `require_context` /
 `deny_context`, frozen in `rules.rs:139-144`). ADR-1 explicitly says richer matching
 (taint/dataflow) "is a separate ADR, not a quiet 4th field." **This is that ADR.**
@@ -80,6 +81,59 @@ matches memory writes by (a) `source_kinds` prefix on known memory/RAG tool labe
 transcript/telemetry names — if a memory write is performed by an unrecognized tool with no
 persist-verb in its args, it is invisible. AGT-MEM-001 is therefore a **candidate that
 content *could* poison memory**, never a detection of activated cross-session poisoning.
+
+## Rev 2 amendments (binding — from the architect design review)
+
+These supersede the prose above where they conflict; they are binding ACs for the
+implementation.
+
+- **A (CRITICAL) — filter, never renumber.** `compile_rules` MUST keep `agt_index` a
+  positional index into the FULL `rules.detection.rules[]` (`matching.rs:161,290,296` rely
+  on `engine.contexts[i]` ↔ `rules.detection.rules[i]` 1:1). Sequence rules contribute ZERO
+  `CompiledSignal`s to `engine.signals` (so the single-action loop never sees them) but are
+  NOT renumbered out: iterate the full vec with `.enumerate()`, push a context for every
+  rule, and route by `match &rule.sequence { None => signal, Some(_) => sequence }`. The
+  word "partition" in §2 means *filter*, not *re-index*.
+
+- **B (HIGH) — sink vocabulary = observable-today (B-narrow chosen).** `parse_session.rs:
+  169-172` surfaces only `file_path` for Write/Edit (NOT the written content), and no
+  `Memory` tool exists, so `session:Memory`/`session:Write` sinks are near-unfireable.
+  CHOSEN: scope `AGT-MEM-001`'s sink_step to what IS observable — a **`session:Bash`
+  persist command** (e.g. writing to a vector store / memory file: `psql … INSERT INTO
+  embeddings`, redis/`SET`, `>> ~/.../memory`, `chroma`/`qdrant`/`faiss` CLIs) and **generic
+  `otlp:` records** whose body carries a persist verb. DROP `session:Memory`/`session:Write`
+  from the sink vocabulary. (Future: a separate parser ADR could surface Write/Edit content
+  under a NEW source namespace — e.g. `content:Write` — that existing rules do not match;
+  that is out of scope here.) The coverage limit is documented honestly: AGT-MEM-001 fires
+  on a marker-bearing action followed by a Bash/OTLP persist — it does not see memory writes
+  performed by tools whose content the parser does not surface.
+
+- **C (process).** B is a prerequisite of AGT-MEM-001's corpus ACs — the non-duplicate
+  discriminator (below) is only honestly satisfiable once the sink is observable.
+
+- **D (CRITICAL) — guards the precision gate does NOT provide.** Add, before merge:
+  1. a **byte-identical-output test**: a captured fixture run through the engine with the
+     existing 16 rules (no sequence rule) serialized identically before/after the
+     `compile_rules` change (the precision gate is set-membership and can mask an index bug);
+  2. a **`matching.rs` alignment unit test**: with a sequence rule loaded, assert for every
+     `CompiledSignal` that `rules.detection.rules[cs.agt_index].agt_code` equals the agt_code
+     it was compiled from, and `engine.contexts.len() == rules.detection.rules.len()`.
+
+- **E (HIGH leverage) — minimize the diff to the CRITICAL module.** The ordered-pair scan
+  lives in a NEW module `crates/scanner/src/sequence.rs`. The behavioral delta to
+  `matching.rs` is exactly: (1) the agt_index-preserving filter in `compile_rules` (+ an
+  `engine.sequences` field), and (2) ONE trailing `sequence::match_sequences(...)` call in
+  `match_actions_with_suppress` before it returns `MatchOutcome`. `build_finding` becomes
+  `pub(crate)` (visibility only) so `sequence.rs` reuses it. When no sequence rule is loaded
+  the trailing call is a no-op, so the byte-identical path (D.1) is trivially green.
+
+- **Corpus/harness note.** `precision_recall.rs` feeds ONE action per corpus item; a sequence
+  needs TWO ordered actions, which the synthetic-gate item shape does not express. Therefore
+  AGT-MEM-001's positive behavior is covered by a DEDICATED multi-action integration test
+  (≥1 marker→persist sequence firing AGT-MEM-001 but NOT AGT-PI-003), while the synthetic
+  gate asserts the NEGATIVE half of the discriminator: AGT-MEM-001 fires on ZERO of the 76
+  single-action corpus items (per-rule count `AGT-MEM-001` == 0). This keeps the synthetic
+  gate's numbers byte-unchanged (Principle 3) while still proving the rule is non-duplicate.
 
 ## Alternatives considered
 
