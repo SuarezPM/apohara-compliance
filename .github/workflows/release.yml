@@ -13,10 +13,11 @@ on:
     tags:
       - "v*"
 
+# Least privilege at the top level; each job re-declares only what it needs.
+# GitHub Actions permissions are subtractive — a job with no `permissions:` block
+# inherits this read-only default, so write scopes must live on their job.
 permissions:
-  contents: write       # create the GitHub Release + upload assets
-  id-token: write       # cosign keyless (OIDC) + attestation
-  attestations: write   # actions/attest-build-provenance
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -29,6 +30,10 @@ jobs:
   build:
     name: build (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write       # cosign keyless (OIDC) + attestation OIDC
+      attestations: write   # actions/attest-build-provenance
     strategy:
       fail-fast: false
       matrix:
@@ -117,6 +122,8 @@ jobs:
     name: assemble release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the GitHub Release + upload assets
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -188,6 +195,8 @@ jobs:
   bundle-integrity:
     name: bundle integrity
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -208,6 +217,8 @@ jobs:
     name: cargo publish
     needs: [build, bundle-integrity]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
