@@ -16,6 +16,7 @@ mod format;
 mod gap;
 mod matching;
 mod model;
+mod parse_otlp;
 mod parse_repo;
 mod parse_session;
 mod rules;
@@ -86,6 +87,13 @@ fn main() -> ExitCode {
             }
         },
         Command::ScanRepo { path, ext } => run_scan_repo(path, ext, &data, &suppress),
+        Command::ScanOtlp { path } => match run_scan_otlp(path, &data, &suppress) {
+            Ok(r) => r,
+            Err(err) => {
+                eprintln!("apohara-compliance-scanner: error: {err}");
+                return ExitCode::FAILURE;
+            }
+        },
         Command::ScanAction { action, kind } => run_scan_action(action, kind, &data, &suppress),
         Command::Gap { path } => match run_scan_for_gap(path, &data, &suppress) {
             Ok(r) => r,
@@ -250,6 +258,14 @@ fn scan_target_dir(cli: &Cli) -> Option<PathBuf> {
         Command::ScanRepo { path, .. } => Some(path.clone()),
         Command::Gap { path } => {
             if is_session_transcript(path) {
+                path.parent().map(Path::to_path_buf)
+            } else {
+                Some(path.clone())
+            }
+        }
+        // OTLP input: a file's parent, or the directory itself.
+        Command::ScanOtlp { path } => {
+            if path.is_file() {
                 path.parent().map(Path::to_path_buf)
             } else {
                 Some(path.clone())
@@ -454,6 +470,77 @@ fn run_scan_repo(
     let outcome = match_actions_with_suppress(&parsed.actions, data, suppress);
     log_outcome(parsed.actions.len(), outcome.findings.len(), outcome.suppressed.len());
     Report::with_suppressed(data.source, outcome.findings, outcome.suppressed)
+}
+
+/// Scan OTLP-exported telemetry from disk (US-F4 / v1.2). Reads a single OTLP/JSON
+/// file OR every `*.json`/`*.jsonl`/`*.ndjson` file in a directory (non-recursive),
+/// parses each tolerantly, and matches the mapped actions. Reads FILES only — no
+/// socket, no network. An explicit path that does not exist is a LOUD error.
+fn run_scan_otlp(path: &Path, data: &RuleData, suppress: &SuppressList) -> Result<Report, String> {
+    let files = otlp_input_files(path)?;
+    let mut actions = Vec::new();
+    let mut kinds = std::collections::BTreeSet::new();
+    let mut skip_count = 0usize;
+    for file in &files {
+        let text = std::fs::read_to_string(file)
+            .map_err(|e| format!("failed to read OTLP file {}: {e}", file.display()))?;
+        let parsed = parse_otlp::parse_otlp(&text);
+        for reason in &parsed.skips {
+            eprintln!("apohara-compliance-scanner: skip: {}: {reason}", file.display());
+        }
+        skip_count += parsed.skips.len();
+        kinds.extend(parsed.observed_kinds);
+        actions.extend(parsed.actions);
+    }
+    eprintln!(
+        "apohara-compliance-scanner: scan-otlp read {} file(s), record kind(s) {:?}; \
+         {} observable action(s); {} record(s) skipped-with-reason \
+         (post-hoc, exporter-bounded — candidates only)",
+        files.len(),
+        kinds,
+        actions.len(),
+        skip_count,
+    );
+
+    let outcome = match_actions_with_suppress(&actions, data, suppress);
+    log_outcome(actions.len(), outcome.findings.len(), outcome.suppressed.len());
+    Ok(Report::with_suppressed(
+        data.source,
+        outcome.findings,
+        outcome.suppressed,
+    ))
+}
+
+/// Resolve the OTLP input path to a list of files: the file itself, or the OTLP/JSON
+/// files directly inside a directory. A non-existent path is a LOUD error (typo guard).
+fn otlp_input_files(path: &Path) -> Result<Vec<PathBuf>, String> {
+    if !path.exists() {
+        return Err(format!("OTLP input not found: {}", path.display()));
+    }
+    if path.is_file() {
+        return Ok(vec![path.to_path_buf()]);
+    }
+    let mut files: Vec<PathBuf> = Vec::new();
+    let entries = std::fs::read_dir(path)
+        .map_err(|e| format!("failed to read OTLP directory {}: {e}", path.display()))?;
+    for entry in entries.flatten() {
+        let p = entry.path();
+        let is_otlp = p.extension().is_some_and(|e| {
+            let e = e.to_ascii_lowercase();
+            e == "json" || e == "jsonl" || e == "ndjson"
+        });
+        if p.is_file() && is_otlp {
+            files.push(p);
+        }
+    }
+    files.sort();
+    if files.is_empty() {
+        return Err(format!(
+            "no OTLP/JSON files (*.json/*.jsonl/*.ndjson) in directory: {}",
+            path.display()
+        ));
+    }
+    Ok(files)
 }
 
 /// Match a SINGLE observed action string against the rules (US-F3-2 / Step 3.2),

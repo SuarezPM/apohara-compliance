@@ -125,6 +125,18 @@ pub enum Command {
         /// Path to a `.jsonl` session transcript OR a repository root.
         path: PathBuf,
     },
+    /// Scan OTLP-exported telemetry (logs/traces) an OpenTelemetry exporter wrote
+    /// to disk (OTLP/JSON; a single document or NDJSON) — e.g. an agent's exported
+    /// run (US-F4 / v1.2). Runtime-coverage input for the OFFLINE scanner: it reads
+    /// FILES only (no socket, no listener, no network dependency). Tool/function
+    /// records map to the same `session:{Tool}.input` actions a live transcript
+    /// would yield, so existing rules fire over exported telemetry. Honesty: this is
+    /// POST-HOC and exporter-bounded — findings are CANDIDATES, never a real-time
+    /// guarantee.
+    ScanOtlp {
+        /// Path to an OTLP/JSON file, or a directory of them (*.json/*.jsonl/*.ndjson).
+        path: PathBuf,
+    },
     /// Match a SINGLE observed action string against the rules WITHOUT reading any
     /// file or session transcript (US-F3-2 / Step 3.2). Built for a live
     /// PreToolUse hook: feed the about-to-run command/path as one action and get

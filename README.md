@@ -103,6 +103,12 @@ apohara-compliance-scanner scan-session ./session.jsonl --by-asi --format md
 apohara-compliance-scanner scan-repo . --format json > baseline.json
 apohara-compliance-scanner scan-repo . --baseline baseline.json --only-new --format sarif
 
+# Scan OTLP-exported telemetry (logs/traces) an OTel exporter wrote to disk.
+# Runtime coverage for the OFFLINE scanner — it reads FILES only, no socket.
+# Post-hoc and exporter-bounded; findings stay candidates, never real-time.
+apohara-compliance-scanner scan-otlp ./otel-export.json --format sarif
+apohara-compliance-scanner scan-otlp ./otel-logs/ --format md   # a directory of exports
+
 # Gap analysis: carried controls with no candidate evidence observed
 apohara-compliance-scanner gap ./session.jsonl --format md
 
@@ -170,10 +176,11 @@ The tuning removes the substring matcher's false positives (0.70 → 1.00 precis
 apohara-compliance/
 ├── crates/scanner/          # the deterministic Rust scanner
 │   ├── src/
-│   │   ├── cli.rs           # clap CLI surface (scan-session / scan-repo / gap)
+│   │   ├── cli.rs           # clap CLI surface (scan-session / scan-repo / scan-otlp / gap)
 │   │   ├── matching.rs      # regex + word-boundary + context engine
 │   │   ├── rules.rs         # rule loading + resolution ladder
 │   │   ├── parse_session.rs # tolerant NDJSON session-transcript reader
+│   │   ├── parse_otlp.rs    # tolerant OTLP/JSON telemetry reader (offline, file-only)
 │   │   ├── parse_repo.rs    # gitignore-respecting repo walker
 │   │   ├── baseline.rs      # diff vs. a prior run (SARIF baselineState)
 │   │   └── format/          # json · sarif · md · gap renderers
