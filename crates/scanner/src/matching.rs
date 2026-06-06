@@ -95,10 +95,13 @@ struct CompiledContext {
 }
 
 /// Everything compiled once for one rule-load: per-signal regexes + per-rule
-/// context. `contexts[i]` corresponds to `rules.detection.rules[i]`.
+/// context + the multi-action sequences (ADR-2). `contexts[i]` corresponds to
+/// `rules.detection.rules[i]` for EVERY rule (sequence rules included) so the
+/// single-action loop's `agt_index` stays a positional index into the full vec.
 struct RuleEngine {
     signals: Vec<CompiledSignal>,
     contexts: Vec<CompiledContext>,
+    sequences: Vec<crate::sequence::CompiledSequence>,
 }
 
 /// Build a case-insensitive regex for one literal signal, applying `\b` ONLY at
@@ -115,7 +118,7 @@ struct RuleEngine {
 /// that class; word-bounded-prose FPs (`act as`, …) are handled by the US-F1-1
 /// context DSL (`deny_context`) layered after this signal match — see
 /// [`context_verdict`].
-fn compile_signal(signal: &str) -> Regex {
+pub(crate) fn compile_signal(signal: &str) -> Regex {
     fn is_word_char(c: char) -> bool {
         c.is_ascii_alphanumeric() || c == '_'
     }
@@ -158,13 +161,24 @@ fn compile_context_fragment(agt_code: &str, kind: &str, fragment: &str) -> Optio
 fn compile_rules(rules: &RuleData) -> RuleEngine {
     let mut signals = Vec::new();
     let mut contexts = Vec::new();
+    let mut sequences = Vec::new();
     for (agt_index, rule) in rules.detection.rules.iter().enumerate() {
-        for signal in &rule.signals {
-            signals.push(CompiledSignal {
-                agt_index,
-                signal: signal.clone(),
-                regex: compile_signal(signal),
-            });
+        // ADR-2 amendment A: FILTER, never renumber. A sequence rule contributes
+        // ZERO CompiledSignals (so the single-action loop never sees it) but is NOT
+        // removed from the index space — `agt_index` stays a positional index into
+        // the full `rules.detection.rules[]`, and a context is still pushed for it
+        // below, so `contexts[i]` ↔ `rules[i]` 1:1 alignment holds for EVERY rule.
+        match &rule.sequence {
+            Some(seq) => sequences.push(crate::sequence::compile_sequence(agt_index, seq)),
+            None => {
+                for signal in &rule.signals {
+                    signals.push(CompiledSignal {
+                        agt_index,
+                        signal: signal.clone(),
+                        regex: compile_signal(signal),
+                    });
+                }
+            }
         }
         let require = rule
             .require_context
@@ -182,7 +196,11 @@ fn compile_rules(rules: &RuleData) -> RuleEngine {
             deny,
         });
     }
-    RuleEngine { signals, contexts }
+    RuleEngine {
+        signals,
+        contexts,
+        sequences,
+    }
 }
 
 /// The context-DSL verdict for one (action, rule, signal) hit (US-F1-1).
@@ -328,6 +346,19 @@ pub fn match_actions_with_suppress(
         }
     }
 
+    // ADR-2: the multi-action SECOND PASS, appended AFTER the single-action loop.
+    // A no-op when no sequence rule is loaded (engine.sequences is empty), so the
+    // single-action output stays byte-identical. Sequence findings are appended at
+    // the tail, preserving the order of the single-action findings above.
+    crate::sequence::match_sequences(
+        actions,
+        &engine.sequences,
+        rules,
+        suppress,
+        &mut findings,
+        &mut suppressed,
+    );
+
     MatchOutcome {
         findings,
         suppressed,
@@ -426,7 +457,7 @@ fn is_asi_id(s: &str) -> bool {
 }
 
 /// Build a candidate `Finding` from a matched rule + the signal that fired.
-fn build_finding(rule: &DetectionRule, signal: &str, rules: &RuleData) -> Finding {
+pub(crate) fn build_finding(rule: &DetectionRule, signal: &str, rules: &RuleData) -> Finding {
     // Citation comes from the FIRST mapped control resolvable in the extracted 49
     // (deterministic). If none of the mapped controls is in the 49 (e.g. it cites
     // GDPR/HIPAA), cite the rule's own source-line token at the detection version.
@@ -546,6 +577,54 @@ fn find_control<'a>(id: &str, rules: &'a RuleData) -> Option<&'a Control> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ADR-2 amendment D.2: with sequence rules present, `compile_rules` must FILTER
+    // (not renumber) — `agt_index` stays a positional index into the full rules vec,
+    // `contexts` stays length `rules.len()`, and sequence rules contribute no signals.
+    #[test]
+    fn compile_rules_preserves_agt_index_alignment_with_sequence_rules() {
+        use crate::rules::load_embedded;
+        let data = load_embedded().expect("embedded rules");
+        let engine = compile_rules(&data);
+
+        // contexts is 1:1 with the FULL rules vec (every rule, sequence or not).
+        assert_eq!(
+            engine.contexts.len(),
+            data.detection.rules.len(),
+            "contexts must stay aligned 1:1 with the full rules vec"
+        );
+
+        // Every compiled signal's agt_index points at the rule it was compiled from,
+        // and that rule is a SINGLE-ACTION rule (sequence rules contribute no signals).
+        for cs in &engine.signals {
+            let rule = &data.detection.rules[cs.agt_index];
+            assert!(
+                rule.sequence.is_none(),
+                "{} is a sequence rule but contributed a single-action signal",
+                rule.agt_code
+            );
+            assert!(
+                rule.signals.contains(&cs.signal),
+                "signal {:?} does not belong to rule {} at agt_index {}",
+                cs.signal,
+                rule.agt_code,
+                cs.agt_index
+            );
+        }
+
+        // The sequence partition count equals the number of rules with a sequence.
+        let seq_rule_count = data
+            .detection
+            .rules
+            .iter()
+            .filter(|r| r.sequence.is_some())
+            .count();
+        assert_eq!(
+            engine.sequences.len(),
+            seq_rule_count,
+            "every sequence rule compiles to exactly one CompiledSequence"
+        );
+    }
     use crate::rules::load_embedded;
 
     /// Does any rule fire `agt_code` on `value` (active findings only)?

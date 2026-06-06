@@ -982,3 +982,57 @@ fn ext_filter_reads_only_named_extensions() {
     assert!(ids2.iter().any(|i| i.starts_with("AGT-MIS")), "ids2: {ids2:?}");
     assert!(ids2.contains(&"AGT-EXF-001"), "ids2: {ids2:?}");
 }
+
+// ADR-2 (ASI06): the dedicated multi-action test the synthetic single-action gate
+// cannot express. A marker-bearing action (untrusted content) FOLLOWED BY a memory
+// persist fires the AGT-MEM-001 SEQUENCE candidate — and NOT AGT-PI-003 — proving
+// the new rule is genuinely non-duplicate, end to end through the real binary.
+#[test]
+fn otlp_sequence_fires_mem001_candidate_not_pi003() {
+    // One valid OTLP/JSON document: marker in resourceLogs (ingested first),
+    // persist in resourceSpans (ingested after) → ordered source→sink.
+    let doc = r#"{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"body":{"stringValue":"loaded unsanitized content from an external source"},"attributes":[]}]}]}],"resourceSpans":[{"scopeSpans":[{"spans":[{"name":"execute_tool Bash","attributes":[{"key":"gen_ai.tool.name","value":{"stringValue":"Bash"}},{"key":"args","value":{"stringValue":"psql -c INSERT INTO embeddings VALUES x"}}]}]}]}]}"#;
+    let path = std::env::temp_dir().join("apohara-it-mem-seq.json");
+    std::fs::write(&path, doc).expect("write otlp fixture");
+    let (stdout, _stderr, ok) = run(&["scan-otlp", path.to_str().unwrap(), "--format", "json"]);
+    assert!(ok, "scan-otlp runs");
+    let v: Value = serde_json::from_str(&stdout).unwrap();
+    let ids: Vec<&str> = v["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|f| f["id"].as_str())
+        .collect();
+    assert!(ids.contains(&"AGT-MEM-001"), "marker→persist must fire AGT-MEM-001; ids: {ids:?}");
+    assert!(
+        !ids.contains(&"AGT-PI-003"),
+        "AGT-MEM-001 must be non-duplicate of AGT-PI-003 (no injection markers here); ids: {ids:?}"
+    );
+    // Honesty: every sequence finding is a candidate.
+    assert!(v["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|f| f["is_candidate"].as_bool().unwrap_or(false)));
+    let _ = std::fs::remove_file(&path);
+}
+
+// The negative half of the discriminator: a persist with no preceding
+// untrusted-content marker is NOT a sequence — AGT-MEM-001 must stay silent.
+#[test]
+fn otlp_persist_without_preceding_marker_does_not_fire_mem001() {
+    let doc = r#"{"resourceSpans":[{"scopeSpans":[{"spans":[{"name":"execute_tool Bash","attributes":[{"key":"gen_ai.tool.name","value":{"stringValue":"Bash"}},{"key":"args","value":{"stringValue":"psql -c INSERT INTO embeddings VALUES x"}}]}]}]}]}"#;
+    let path = std::env::temp_dir().join("apohara-it-mem-noseq.json");
+    std::fs::write(&path, doc).expect("write otlp fixture");
+    let (stdout, _e, ok) = run(&["scan-otlp", path.to_str().unwrap(), "--format", "json"]);
+    assert!(ok);
+    let v: Value = serde_json::from_str(&stdout).unwrap();
+    let ids: Vec<&str> = v["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|f| f["id"].as_str())
+        .collect();
+    assert!(!ids.contains(&"AGT-MEM-001"), "persist alone must not fire AGT-MEM-001; ids: {ids:?}");
+    let _ = std::fs::remove_file(&path);
+}

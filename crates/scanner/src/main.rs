@@ -20,6 +20,7 @@ mod parse_otlp;
 mod parse_repo;
 mod parse_session;
 mod rules;
+mod sequence;
 mod suppress;
 mod triage;
 

@@ -154,6 +154,8 @@ Cross-references resolve along the chain **ASI → OWASP-LLM → ATLAS → ISO 4
 
 **Candidates only.** Findings are emitted as SARIF `note`/`warning`, never `error`, and every line is prefixed `CANDIDATE —`. A false positive is a "please confirm", not a wrong verdict.
 
+**Multi-action correlation (ASI06).** Beyond single-action signals, a second opt-in pass correlates an _ordered_ pair — untrusted/unsanitized content **followed by** a write to a memory/RAG sink — to surface OWASP **ASI06 (Memory & Context Poisoning)** candidates (`AGT-MEM-001`). Like every finding it is **candidate-only**: it flags content that _could_ poison future context, never a detection of activated cross-session poisoning. Sink coverage is bounded to what the transcript/telemetry surfaces (shell persist commands + exported OTLP records) — see `docs/adr/ADR-2-multi-action-sequence-matching.md`.
+
 **Traceable provenance.** 49 carried controls each trace to a cited source. Each finding records `status: official` or `status: draft`. In particular, NIST `AGENTIC-*` controls are flagged **`draft`** — they derive from a **March-2026 CSA draft profile, not official NIST**, and the scanner says so on every such finding. IDs, names, and versions are cited; no copyrighted framework text is reproduced.
 
 **Measured, gated precision.** A committed CI harness runs the **real** scanner over a synthetic precision/recall corpus on every `cargo test`. On that corpus:

@@ -167,7 +167,7 @@ if dangling:
 # RAC-2.2: AGT-GOV-002 MUST cross-ref ISO42001:A.6.2.8.
 by_code = {r['agt_code']: (r.get('iso42001_xref') or []) for r in rlist}
 assert 'ISO42001:A.6.2.8' in by_code.get('AGT-GOV-002', []), "AGT-GOV-002 must map to ISO42001:A.6.2.8"
-print(f"  {mapped}/16 AGT rules mapped to ISO 42001; all iso42001_xref resolve; GOV-002 -> A.6.2.8", file=sys.stderr)
+print(f"  {mapped}/17 AGT rules mapped to ISO 42001; all iso42001_xref resolve; GOV-002 -> A.6.2.8", file=sys.stderr)
 PY
 
 python3 - <<'PY' && pass "EU AI Act layer provenance gate (US-F2-3: framework EU AI Act, version 2024/1689, status official, eur-lex url, Art-10/11/13)" || bad "EU AI Act provenance gate"
@@ -246,7 +246,7 @@ assert 'EU-AI-ACT:Art-13' in by_code.get('AGT-GOV-001', []), "AGT-GOV-001 must m
 referenced = {x for xs in by_code.values() for x in xs}
 for need in ('EU-AI-ACT:Art-10', 'EU-AI-ACT:Art-11', 'EU-AI-ACT:Art-13'):
     assert need in referenced, f"{need} must be referenced by at least one AGT rule"
-print(f"  {mapped}/16 AGT rules mapped to EU AI Act; all eu_ai_act_xref resolve; Art-10/11/13 all referenced", file=sys.stderr)
+print(f"  {mapped}/17 AGT rules mapped to EU AI Act; all eu_ai_act_xref resolve; Art-10/11/13 all referenced", file=sys.stderr)
 PY
 
 python3 - <<'PY' && pass "controls-49 count UNCHANGED at exactly 49 (US-F2-3 separate-layer invariant)" || bad "controls-49 count drift"
@@ -308,7 +308,7 @@ if dangling:
 by_code = {r['agt_code']: (r.get('atlas_xref') or []) for r in rlist}
 for code in ('AGT-PI-001', 'AGT-PI-003'):
     assert 'AML.T0051' in by_code.get(code, []), f"{code} must map to AML.T0051"
-print(f"  {mapped}/16 AGT rules mapped to ATLAS; all atlas_xref resolve; PI-001/PI-003 -> AML.T0051", file=sys.stderr)
+print(f"  {mapped}/17 AGT rules mapped to ATLAS; all atlas_xref resolve; PI-001/PI-003 -> AML.T0051", file=sys.stderr)
 PY
 
 python3 - <<'PY' && pass "detection-rules carried-framework refs all resolve to controls-49" || bad "detection-rules dangling carried-framework ref"

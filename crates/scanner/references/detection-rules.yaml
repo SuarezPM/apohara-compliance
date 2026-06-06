@@ -298,3 +298,31 @@ rules:
     eu_ai_act_xref: ["EU-AI-ACT:Art-13"]
     default_confidence: 0.9
     citation: "incident-taxonomy.md:122"
+
+  # --- Memory & Context Poisoning (AGT-MEM) — OWASP ASI06, ADR-2 sequence rule ---
+  - agt_code: "AGT-MEM-001"
+    name: "Unsanitized Content Persisted to Memory/RAG"
+    severity: 8
+    # SEQUENCE rule (ADR-2): matching is the ordered `sequence` block below, NOT
+    # single-action `signals` — kept empty so compile_rules routes this to the
+    # second pass and it contributes zero single-action signals.
+    signals: []
+    djl_rules: ["DJL-MEM-001"]
+    maps_to_controls: ["OWASP-LLM:LLM04", "EU-AI-ACT:Art-15", "ISO27001:A.12.1"]
+    asi_xref: ["ASI06"]
+    default_confidence: 0.6
+    citation: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    # ADR-2 two-action correlation: untrusted/unsanitized content (source_step)
+    # FOLLOWED BY a persist to a memory/RAG sink (sink_step). Distinct from
+    # AGT-PI-003 (single-action injection markers): the source markers here are
+    # untrusted-content PROVENANCE, not injection commands, so this fires where
+    # PI-003 does not. Candidate-only: content that COULD poison future context,
+    # never a detection of activated cross-session poisoning. Sink coverage is
+    # bounded to what the parsers surface (Bash persist commands + generic OTLP
+    # records) — see ADR-2 amendment B.
+    sequence:
+      source_step:
+        signals: ["untrusted source", "unsanitized content", "external content", "third-party data", "scraped content", "peer agent message", "from another agent", "user-supplied content"]
+      sink_step:
+        signals: ["INSERT INTO embeddings", "upsert", "vector store", "vectorstore", "save to memory", "write to memory", "add to memory", "persist to memory", "memorize", "chroma", "qdrant", "faiss", "pinecone"]
+        source_kinds: ["session:Bash", "otlp:"]

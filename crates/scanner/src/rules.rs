@@ -127,7 +127,8 @@ impl std::error::Error for RulesError {}
 // but not yet read by application code, hence the targeted dead_code allows that
 // document the schema rather than dropping fields.
 
-/// `detection-rules.yaml` — header + the 16 AGT-* rules.
+/// `detection-rules.yaml` — header + the AGT-* rules (16 single-action + the
+/// AGT-MEM-001 sequence rule, ADR-2).
 #[derive(Debug, Clone, Deserialize)]
 pub struct DetectionRuleSet {
     pub schema_version: u32,
@@ -202,6 +203,38 @@ pub struct DetectionRule {
     /// field carries the SEPARATE-LAYER Art-10/11/13 that the 49-suite omits.
     #[serde(default)]
     pub eu_ai_act_xref: Vec<String>,
+    /// Multi-action SEQUENCE rule (ADR-2). When present, this rule is NOT a
+    /// single-action rule: `compile_rules` excludes it from the single-action
+    /// signal set (its `signals` stay empty) and the separate second pass
+    /// (`sequence.rs`) handles it. Absent (the default for all 16 single-action
+    /// rules) ⇒ ordinary single-action matching, byte-identically unchanged.
+    /// This is a NEW rule-shape discriminator, NOT a 4th context-DSL field — the
+    /// CLOSED 3-field context DSL (ADR-1) is untouched.
+    #[serde(default)]
+    pub sequence: Option<SequenceRule>,
+}
+
+/// A two-step ordered correlation (ADR-2): a `source_step` action FOLLOWED BY a
+/// `sink_step` action later in the same observed-action stream. The minimum
+/// primitive that expresses ASI06 (memory/context poisoning = untrusted content
+/// later persisted to a memory/RAG sink) without touching the single-action loop.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize)]
+pub struct SequenceRule {
+    pub source_step: SequenceStep,
+    pub sink_step: SequenceStep,
+}
+
+/// One step of a [`SequenceRule`]. Reuses the single-action primitives: `signals`
+/// (OR of conditional-`\b` regexes, compiled by `matching::compile_signal`) and a
+/// `source_kinds` PREFIX filter (empty = any source), identical in semantics to
+/// the single-action path — no new matching primitive beyond ordered pairing.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize)]
+pub struct SequenceStep {
+    pub signals: Vec<String>,
+    #[serde(default)]
+    pub source_kinds: Vec<String>,
 }
 
 /// `asi-2026.yaml` — header + ASI01..ASI10.
@@ -585,7 +618,11 @@ mod tests {
         let data = load_embedded().expect("embedded rules load");
         assert_eq!(data.source, RulesSource::EmbeddedFallback);
         assert_eq!(data.detection.schema_version, SCHEMA_VERSION);
-        assert_eq!(data.detection.rules.len(), 16, "16 AGT-* rules expected");
+        assert_eq!(
+            data.detection.rules.len(),
+            17,
+            "17 AGT-* rules expected (16 single-action + AGT-MEM-001 sequence rule, ADR-2)"
+        );
         assert_eq!(data.asi.risks.len(), 10, "ASI01..ASI10");
         assert_eq!(data.controls.controls.len(), 49, "49 controls");
         // US-F2-1: the MITRE ATLAS coverage layer loads at version 5.6.0 and
