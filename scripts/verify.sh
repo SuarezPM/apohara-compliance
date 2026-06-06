@@ -614,6 +614,17 @@ if grep -rniE 'reqwest|ureq|\bhyper\b|isahc|\bsurf\b|attohttpc|std::net::|TcpStr
 else
   pass "offline guard: no outbound-HTTP / network client in Cargo.toml or src"
 fi
+# Defense-in-depth (v1.2): the text grep above only sees our own source. Assert the
+# RESOLVED dependency graph of the published scanner pulls no network / async-runtime
+# crate transitively — a shared util could otherwise smuggle networking past the grep.
+if command -v cargo >/dev/null 2>&1; then
+  if cargo tree -e no-dev -p apohara-compliance-scanner 2>/dev/null \
+       | grep -iqE '(reqwest|\bhyper\b|hyper-util|ureq|isahc|\bsurf\b|attohttpc|tonic|\bh2\b|tokio|\bmio\b|socket2|rustls|native-tls|openssl|axum|warp)'; then
+    bad "offline guard (dep-graph): a network/async-runtime crate is in the scanner dependency tree"
+  else
+    pass "offline guard (dep-graph): no network crate in the scanner dependency tree"
+  fi
+fi
 if [ -f docs/adoption.md ] && ! grep -Eiq "$NEGATIVE_GUARD" docs/adoption.md; then
   pass "docs/adoption.md present and free of assertive vocabulary"
 else
