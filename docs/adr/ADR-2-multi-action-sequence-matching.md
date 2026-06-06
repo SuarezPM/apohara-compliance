@@ -52,7 +52,7 @@ context modifier:
       source_kinds: []           # any source (tool result, retrieved doc)
     sink_step:                    # the persist/memory write that follows
       signals: ['(?i)\b(memor(y|ize)|persist|upsert|embed|rag|vector ?store)\b', ...]
-      source_kinds: ["session:Memory", "session:Write", "otlp:"]
+      source_kinds: ["session:Bash", "otlp:"]   # observable-today (amendment B); NOT session:Memory/Write
     # ordering: a source_step action at index i, a sink_step action at index j>i.
 ```
 
