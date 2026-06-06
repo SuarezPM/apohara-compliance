@@ -91,6 +91,13 @@ jobs:
 
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          # Pin the cosign BINARY to v2.x: cosign v3 (the installer's new default)
+          # changed `sign-blob` to a bundle-format default that breaks the classic
+          # --output-signature/--output-certificate flags below — and those flags
+          # are what SECURITY.md documents for verification and what v1.0.0 shipped.
+          # Pinning the binary also makes the cosign version reproducible.
+          cosign-release: "v2.6.3"
 
       - name: Sign binary with cosign (keyless)
         shell: bash
