@@ -7,8 +7,9 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/SuarezPM/apohara-compliance/release.yml?style=for-the-badge&label=CI)](https://github.com/SuarezPM/apohara-compliance/actions)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=for-the-badge)](#-license)
 [![Rust](https://img.shields.io/badge/rust-1.74%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/version-1.0.0-purple?style=for-the-badge)](https://github.com/SuarezPM/apohara-compliance/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-purple?style=for-the-badge)](https://github.com/SuarezPM/apohara-compliance/releases)
 [![SARIF](https://img.shields.io/badge/output-SARIF%202.1.0-success?style=for-the-badge)](https://sarifweb.azurewebsites.net)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/SuarezPM/apohara-compliance/badge?style=for-the-badge)](https://scorecard.dev/viewer/?uri=github.com/SuarezPM/apohara-compliance)
 
 **[Quick Start](#-quick-start)** · **[Features](#-features)** · **[Frameworks](#-framework-coverage)** · **[How it works](#-how-it-works--honesty)** · **[Benchmark](BENCHMARK.md)** · **[Security](SECURITY.md)**
 
@@ -68,7 +69,8 @@ It is, as far as we know, the first developer-tier tool built directly on the OW
 
 | | |
 |---|---|
-| 🎯 **Action-level scanning** | Maps an agent's actual tool calls (`scan-session`), not just files at rest. Also scans repositories (`scan-repo`). |
+| 🎯 **Action-level scanning** | Maps an agent's actual tool calls (`scan-session`), not just files at rest. Also scans repositories (`scan-repo`) and OTLP-exported telemetry off disk (`scan-otlp`, offline). |
+| 🧠 **Multi-action correlation** | Beyond single-action signals, an ordered second pass surfaces OWASP **ASI06 (Memory & Context Poisoning)** candidates (`AGT-MEM-001`): untrusted content followed by a write to a memory/RAG sink — candidate-only, never a runtime guarantee. |
 | 📑 **Cited candidates** | Every finding carries `{id, title, status, confidence, triggering_signal, citation(url+version), suggested_controls, cross_refs}`. No copyrighted framework prose is reproduced. |
 | 🧭 **10-framework crosswalk** | One signal resolves across OWASP Agentic, OWASP LLM, MITRE ATLAS, ISO 42001, EU AI Act, NIST, SOC 2 and ISO 27001 — see the [coverage table](#-framework-coverage). |
 | 🔌 **SARIF 2.1.0 output** | `--format sarif` is CI-ingestible by code scanning. Findings are `note`/`warning` — **never** `error`. A wrapping GitHub Action is included. |

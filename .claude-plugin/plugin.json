@@ -1,6 +1,6 @@
 {
   "name": "apohara-compliance",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Maps a coding agent's observed actions or a repository to compliance/security framework controls, surfacing candidate risks and controls with citations. Guidance and mapping only — never certification, audit, or legal advice.",
   "author": {
     "name": "Pablo M. Suarez",

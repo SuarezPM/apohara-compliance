@@ -5,6 +5,41 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-06-06
+
+"Runtime & coverage". Additive features over v1.0.0 — the deterministic, offline
+core is unchanged (the single-action matcher is byte-identical; the synthetic
+precision/recall gate is untouched). Plus supply-chain hardening and trust docs.
+
+### Added
+
+- `scan-otlp <file|dir>`: read OTLP-exported telemetry (logs/traces, OTLP/JSON,
+  single document or NDJSON) **off disk** — runtime coverage for the offline
+  scanner (no socket, no listener, no network dependency). Tool/function records
+  map to the same `session:{Tool}.input` actions a live transcript yields, so
+  existing rules fire over exported telemetry. Post-hoc and exporter-bounded;
+  findings stay candidates, never real-time.
+- ASI06 (Memory & Context Poisoning) detection via `AGT-MEM-001` — an opt-in,
+  additive **multi-action sequence** pass (ADR-2): untrusted/unsanitized content
+  **followed by** a write to a memory/RAG sink. Distinct from `AGT-PI-003`
+  (single-action injection markers); candidate-only, coverage bounded to shell
+  persist commands + exported OTLP records. The 16 single-action rules and the
+  frozen 3-field context DSL are unchanged (the rule count is now 17).
+- `SECURITY.md` (disclosure policy, threat model, supply-chain / verify-a-release
+  model) and `BENCHMARK.md` (reproducible synthetic precision/recall, leading
+  with the baseline→tuned delta).
+- OpenSSF Scorecard workflow, Dependabot (cargo + github-actions), and a CodeQL
+  (Rust) workflow.
+
+### Changed
+
+- `release.yml`: all actions SHA-pinned; least-privilege per-job permissions
+  (build retains `id-token`/`attestations`); cosign binary pinned to v2.6.3
+  (cosign v3 `sign-blob` is not drop-in with the classic flags); pre-release
+  tags never publish to crates.io.
+- `verify.sh`: added a dependency-graph offline guard (`cargo tree` shows no
+  network crate) alongside the existing source-text guard.
+
 ## [1.0.0] - 2026-06-05
 
 "Validated + live". Phase 3 adds an opt-in LLM-assist triage path, a live

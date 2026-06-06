@@ -1,6 +1,6 @@
 [package]
 name = "apohara-compliance-scanner"
-version = "1.0.0"
+version = "1.1.0"
 description = "Deterministic scanner that maps coding-agent actions or a repository to compliance/security framework controls, surfacing candidates (never asserting). Part of the apohara-compliance agent-compliance skill."
 license.workspace = true
 edition.workspace = true
