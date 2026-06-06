@@ -223,6 +223,10 @@ jobs:
   publish-crate:
     name: cargo publish
     needs: [build, bundle-integrity]
+    # Never publish a pre-release / dry-run tag (e.g. v1.1.1-rc.1) to crates.io —
+    # semver pre-release tags carry a hyphen; real releases do not. Keeps the
+    # signing dry-run from attempting an (irreversible) crates.io publish.
+    if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
