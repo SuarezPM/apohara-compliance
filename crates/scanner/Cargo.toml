@@ -38,7 +38,7 @@ regex = "1.12.3"
 # [severity]). Parse-only (no `display`/serialize) to keep the dep tree minimal;
 # we only DESERIALIZE config, never write it. `toml` 0.8 declares rust-version
 # 1.66, comfortably under the workspace MSRV 1.74.
-toml = { version = "0.8.23", default-features = false, features = ["parse"] }
+toml = { version = "1.1.2", default-features = false, features = ["parse"] }
 
 [dev-dependencies]
 # Resolution-ladder tests build temp rule dirs to assert CLI/env/embedded precedence.
