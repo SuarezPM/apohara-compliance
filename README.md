@@ -10,7 +10,7 @@
 [![Version](https://img.shields.io/badge/version-1.0.0-purple?style=for-the-badge)](https://github.com/SuarezPM/apohara-compliance/releases)
 [![SARIF](https://img.shields.io/badge/output-SARIF%202.1.0-success?style=for-the-badge)](https://sarifweb.azurewebsites.net)
 
-**[Quick Start](#-quick-start)** · **[Features](#-features)** · **[Frameworks](#-framework-coverage)** · **[How it works](#-how-it-works--honesty)**
+**[Quick Start](#-quick-start)** · **[Features](#-features)** · **[Frameworks](#-framework-coverage)** · **[How it works](#-how-it-works--honesty)** · **[Benchmark](BENCHMARK.md)** · **[Security](SECURITY.md)**
 
 A deterministic Rust scanner that maps an AI coding agent's **observed actions** — or a repository — to compliance and agentic-security framework controls, surfacing **candidate** risks _with citations_ for a human to confirm.
 
@@ -116,7 +116,7 @@ apohara-compliance-scanner scan-repo . --ext rs,py --min-confidence 0.8 \
 **Other acquisition paths.** Pre-built, signed per-OS binaries are published on [Releases](https://github.com/SuarezPM/apohara-compliance/releases). It also installs as an agent skill/plugin.
 
 > [!WARNING]
-> Downloading a pre-built binary is itself a supply-chain surface — the very risk this tool flags. Verify the build attestation and checksum before running it, or prefer `cargo install` and build from source.
+> Downloading a pre-built binary is itself a supply-chain surface — the very risk this tool flags. Verify the build attestation and checksum before running it (see **[SECURITY.md → How to verify a release](SECURITY.md#how-to-verify-a-release)**), or prefer `cargo install` and build from source.
 
 </details>
 
@@ -157,7 +157,7 @@ Cross-references resolve along the chain **ASI → OWASP-LLM → ATLAS → ISO 4
 | Naive substring baseline | 0.70 | 1.00 |
 | Tuned engine (regex + word-boundary + context) | **1.00** | **1.00** |
 
-The tuning removes the substring matcher's false positives (0.70 → 1.00 precision) **without regressing recall**. The build **fails below precision 0.85**.
+The tuning removes the substring matcher's false positives (0.70 → 1.00 precision) **without regressing recall**. The build **fails below precision 0.85**. Full numbers, per-rule breakdown, the reproduction command, and the honest limitations are in **[BENCHMARK.md](BENCHMARK.md)** (the source of record).
 
 > [!NOTE]
 > Those are metrics on a **100% synthetic, hand-crafted fixture corpus** — fixture metrics, not a claim of real-world accuracy. No real agent session is committed or used for the gate.
@@ -193,8 +193,9 @@ apohara-compliance/
 - [x] SARIF 2.1.0 output + GitHub Action
 - [x] Committed synthetic precision/recall CI gate
 - [x] Baseline diffing (`--baseline` / `--only-new`)
-- [ ] Signed per-OS release binaries with build attestation
-- [ ] Expanded synthetic corpus and per-rule precision reporting
+- [x] Signed per-OS release binaries with build attestation ([how to verify](SECURITY.md#how-to-verify-a-release))
+- [x] Per-rule precision reporting ([BENCHMARK.md](BENCHMARK.md))
+- [ ] Expanded synthetic corpus
 - [ ] Additional agent-transcript formats
 
 ---
