@@ -1,0 +1,16 @@
+# Dependabot — keeps dependencies current (OpenSSF Scorecard Dependency-Update-Tool).
+version: 2
+updates:
+  # Rust crate dependencies (workspace root).
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions used by the workflows (keeps the SHA pins fresh).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
