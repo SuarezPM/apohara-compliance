@@ -188,6 +188,8 @@ apohara-compliance/
 
 ## 🗺️ Roadmap
 
+**Shipped**
+
 - [x] Action-level session scanning (`scan-session`)
 - [x] Repository scanning (`scan-repo`) and gap analysis (`gap`)
 - [x] SARIF 2.1.0 output + GitHub Action
@@ -195,8 +197,12 @@ apohara-compliance/
 - [x] Baseline diffing (`--baseline` / `--only-new`)
 - [x] Signed per-OS release binaries with build attestation ([how to verify](SECURITY.md#how-to-verify-a-release))
 - [x] Per-rule precision reporting ([BENCHMARK.md](BENCHMARK.md))
-- [ ] Expanded synthetic corpus
+
+**Exploring** — demand-driven, not committed
+
+- [ ] Expanded synthetic corpus toward full per-rule coverage (`AGT-EXF-003` has no fixture yet)
 - [ ] Additional agent-transcript formats
+- [ ] First-mover OWASP Agentic Skills (AST01–AST10) rules once the draft stabilizes
 
 ---
 
