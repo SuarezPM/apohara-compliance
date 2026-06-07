@@ -375,6 +375,29 @@
       "why": "v1.4(b) PII-001 'W-9'; 'W-2' differs in the trailing digit and does not match"
     },
     {
+      "id": "fp-email-contents-no-recipient",
+      "kind": "repo-file",
+      "file_name": "onboarding.md",
+      "input": "email the contents of the onboarding guide to new hires each Monday",
+      "expected_agt_codes": [],
+      "why": "v1.4(c) EXF-004 signal 'email the contents of' present, but require_context (an external email address) is absent -> no fire (the prose verb fires on intent, not alone)"
+    },
+    {
+      "id": "fp-post-website-no-url",
+      "kind": "repo-file",
+      "file_name": "ops.md",
+      "input": "we post to the website with the new lunch menu every Friday",
+      "expected_agt_codes": [],
+      "why": "v1.4(c) EXF-005 signal 'post to the website' present, but require_context (a URL) is absent -> no fire"
+    },
+    {
+      "id": "fp-send-link-no-url",
+      "kind": "session-bash",
+      "input": "send a link to the design doc in the welcome message",
+      "expected_agt_codes": [],
+      "why": "v1.4(c) EXF-005 signal 'send a link' present, but require_context (a URL) is absent -> no fire; also exercises a non-repo source"
+    },
+    {
       "id": "fp-benign-no-signal",
       "kind": "repo-file",
       "file_name": "welcome.md",

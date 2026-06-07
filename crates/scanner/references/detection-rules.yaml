@@ -39,8 +39,8 @@
 #                         never a certainty.
 #   citation            : "incident-taxonomy.md:LINE".
 schema_version: 1
-total: 16
-verified_on: "2026-06-05"
+total: 19
+verified_on: "2026-06-07"
 
 rules:
   # --- Prompt Injection (AGT-PI) — incident-taxonomy.md:52-54 ---
@@ -144,6 +144,45 @@ rules:
     eu_ai_act_xref: ["EU-AI-ACT:Art-10"]
     default_confidence: 0.8
     citation: "incident-taxonomy.md:68"
+  # v1.4 (c)/(d): prose exfiltration detectors. EXF-001/002/003 above are
+  # `source_kinds`-scoped to session:Bash + repo-file (executed commands / file
+  # content). The two rules below are NEW and BROAD (empty source_kinds = any
+  # source) so they also see chat/prompt-style actions (session:<tool>.input) —
+  # closing sub-gap (d). Each is gated by require_context (an exfil recipient must
+  # be present) so the prose phrasing fires on INTENT, not on a bare verb, keeping
+  # precision. They surface the data-exfiltration / web-exfiltration class for
+  # natural-language attacks the keyword-scoped rules miss.
+  - agt_code: "AGT-EXF-004"
+    name: "Bulk Data Exfiltration via Messaging (prose)"
+    severity: 8
+    # Bulk "email/send the contents/body of ... " phrasings. require_context demands
+    # an explicit external recipient (an email address), so a benign "email the
+    # report" with no recipient does not fire.
+    signals: ["email the contents of", "email the content of", "send the contents of", "send the body of the email", "send all messages", "send all the messages", "send the contents"]
+    djl_rules: ["DJL-EXF-001"]
+    maps_to_controls: ["SP800-53:AC-3", "GDPR:Art-32", "OWASP-LLM:LLM02", "SOC2:CC6.1"]
+    asi_xref: ["ASI02", "ASI03"]
+    atlas_xref: ["AML.T0057"]
+    eu_ai_act_xref: ["EU-AI-ACT:Art-10"]
+    default_confidence: 0.7
+    citation: "incident-taxonomy.md:66"
+    require_context: ["@[A-Za-z0-9._%+-]+\\.[A-Za-z]{2,}", "email address"]
+    deny_context: ["example\\.com", "no-?reply@", "to the team", "to yourself"]
+  - agt_code: "AGT-EXF-005"
+    name: "Data Sent to External Website/Link (prose)"
+    severity: 8
+    # "post ... to the website", "visit a website at the link", "send a link ...".
+    # require_context demands a URL so the verb alone never fires.
+    signals: ["post them to the website", "post to the website", "post it to the website", "post the messages to", "visit a website at", "send a link", "post all messages to"]
+    djl_rules: ["DJL-EXF-002", "DJL-EXF-003"]
+    maps_to_controls: ["SP800-53:SC-7", "OWASP-LLM:LLM02", "SOC2:CC6.6"]
+    asi_xref: ["ASI02", "ASI04"]
+    atlas_xref: ["AML.T0025"]
+    eu_ai_act_xref: ["EU-AI-ACT:Art-10"]
+    default_confidence: 0.7
+    citation: "incident-taxonomy.md:67"
+    require_context: ["www\\.", "https?://"]
+    deny_context: ["example\\.com", "localhost"]
 
   # --- Tool Misuse (AGT-MIS) — incident-taxonomy.md:80-82 ---
   - agt_code: "AGT-MIS-001"
