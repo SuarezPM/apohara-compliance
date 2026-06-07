@@ -620,9 +620,9 @@ mod tests {
         assert_eq!(data.detection.schema_version, SCHEMA_VERSION);
         assert_eq!(
             data.detection.rules.len(),
-            19,
-            "19 AGT-* rules expected (18 single-action + AGT-MEM-001 sequence rule, ADR-2); \
-             v1.4 added AGT-EXF-004/005 broad prose-exfil rules"
+            20,
+            "20 AGT-* rules expected (19 single-action + AGT-MEM-001 sequence rule, ADR-2); \
+             v1.4 added AGT-EXF-004/005 (prose exfil) + AGT-FIN-003 (prose money movement)"
         );
         assert_eq!(data.asi.risks.len(), 10, "ASI01..ASI10");
         assert_eq!(data.controls.controls.len(), 49, "49 controls");

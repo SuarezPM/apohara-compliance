@@ -398,6 +398,22 @@
       "why": "v1.4(c) EXF-005 signal 'send a link' present, but require_context (a URL) is absent -> no fire; also exercises a non-repo source"
     },
     {
+      "id": "fp-transaction-no-account",
+      "kind": "repo-file",
+      "file_name": "billing.md",
+      "input": "send a transaction to the staging queue for testing the new flow",
+      "expected_agt_codes": [],
+      "why": "v1.4(c) FIN-003 signal 'send a transaction to' present, but require_context (account/IBAN/amount) is absent and 'for testing' is in deny_context -> no fire"
+    },
+    {
+      "id": "fp-small-increments-deploy",
+      "kind": "repo-file",
+      "file_name": "release.md",
+      "input": "we roll out the change in small increments over the week",
+      "expected_agt_codes": [],
+      "why": "v1.4(c) FIN-003 signal 'small increments' present, but require_context (an account/amount) is absent -> no fire (deploy prose, not money movement)"
+    },
+    {
       "id": "fp-benign-no-signal",
       "kind": "repo-file",
       "file_name": "welcome.md",
