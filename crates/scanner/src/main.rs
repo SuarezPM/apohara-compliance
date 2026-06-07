@@ -22,6 +22,7 @@ mod parse_session;
 mod rules;
 mod sequence;
 mod suppress;
+mod taint;
 mod triage;
 
 use std::path::{Path, PathBuf};

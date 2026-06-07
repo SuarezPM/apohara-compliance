@@ -212,6 +212,42 @@ pub struct DetectionRule {
     /// CLOSED 3-field context DSL (ADR-1) is untouched.
     #[serde(default)]
     pub sequence: Option<SequenceRule>,
+    /// Multi-action TAINT rule (ADR-4). When present, this rule is NOT a
+    /// single-action rule: `compile_rules` excludes it from the single-action
+    /// signal set and the separate taint pass (`taint.rs`) handles it. Absent (the
+    /// default) ⇒ ordinary single-action matching, byte-identically unchanged. Like
+    /// `sequence`, this is a NEW rule-shape discriminator, NOT a 4th context-DSL
+    /// field — the CLOSED 3-field context DSL (ADR-1) is untouched.
+    #[serde(default)]
+    pub taint: Option<TaintRule>,
+}
+
+/// A forward-correlated taint rule (ADR-4): a `taint_source` action (untrusted-data
+/// channel carrying an injection marker) FOLLOWED BY a `taint_sink` action (a genuine
+/// sensitive real-action) later in the same observed-action stream. Expresses the
+/// injection→consequence PATTERN (a CANDIDATE correlation, never proven causation).
+#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize)]
+pub struct TaintRule {
+    pub taint_source: TaintStep,
+    pub taint_sink: TaintStep,
+}
+
+/// One step of a [`TaintRule`]. Extends the sequence-step shape with per-step
+/// `require_context`/`deny_context` (the precision guards): the source `deny_context`
+/// suppresses a doc/comment-quoted marker; the sink `require_context` demands a
+/// specifically-sensitive action. `source_kinds` is the same PREFIX filter (the sink
+/// scopes to real-action tools like `session:Bash`, never the chat channel).
+#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize)]
+pub struct TaintStep {
+    pub signals: Vec<String>,
+    #[serde(default)]
+    pub source_kinds: Vec<String>,
+    #[serde(default)]
+    pub require_context: Vec<String>,
+    #[serde(default)]
+    pub deny_context: Vec<String>,
 }
 
 /// A two-step ordered correlation (ADR-2): a `source_step` action FOLLOWED BY a

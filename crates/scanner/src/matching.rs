@@ -102,6 +102,7 @@ struct RuleEngine {
     signals: Vec<CompiledSignal>,
     contexts: Vec<CompiledContext>,
     sequences: Vec<crate::sequence::CompiledSequence>,
+    taints: Vec<crate::taint::CompiledTaint>,
 }
 
 /// Build a case-insensitive regex for one literal signal, applying `\b` ONLY at
@@ -162,22 +163,24 @@ fn compile_rules(rules: &RuleData) -> RuleEngine {
     let mut signals = Vec::new();
     let mut contexts = Vec::new();
     let mut sequences = Vec::new();
+    let mut taints = Vec::new();
     for (agt_index, rule) in rules.detection.rules.iter().enumerate() {
-        // ADR-2 amendment A: FILTER, never renumber. A sequence rule contributes
-        // ZERO CompiledSignals (so the single-action loop never sees it) but is NOT
-        // removed from the index space — `agt_index` stays a positional index into
-        // the full `rules.detection.rules[]`, and a context is still pushed for it
-        // below, so `contexts[i]` ↔ `rules[i]` 1:1 alignment holds for EVERY rule.
-        match &rule.sequence {
-            Some(seq) => sequences.push(crate::sequence::compile_sequence(agt_index, seq)),
-            None => {
-                for signal in &rule.signals {
-                    signals.push(CompiledSignal {
-                        agt_index,
-                        signal: signal.clone(),
-                        regex: compile_signal(signal),
-                    });
-                }
+        // ADR-2 amend A / ADR-4: FILTER, never renumber. A sequence OR taint rule
+        // contributes ZERO CompiledSignals (so the single-action loop never sees it)
+        // but is NOT removed from the index space — `agt_index` stays a positional
+        // index into the full `rules.detection.rules[]`, and a context is still pushed
+        // for it below, so `contexts[i]` ↔ `rules[i]` 1:1 alignment holds for EVERY rule.
+        if let Some(seq) = &rule.sequence {
+            sequences.push(crate::sequence::compile_sequence(agt_index, seq));
+        } else if let Some(taint) = &rule.taint {
+            taints.push(crate::taint::compile_taint(agt_index, &rule.agt_code, taint));
+        } else {
+            for signal in &rule.signals {
+                signals.push(CompiledSignal {
+                    agt_index,
+                    signal: signal.clone(),
+                    regex: compile_signal(signal),
+                });
             }
         }
         let require = rule
@@ -200,6 +203,7 @@ fn compile_rules(rules: &RuleData) -> RuleEngine {
         signals,
         contexts,
         sequences,
+        taints,
     }
 }
 
@@ -353,6 +357,19 @@ pub fn match_actions_with_suppress(
     crate::sequence::match_sequences(
         actions,
         &engine.sequences,
+        rules,
+        suppress,
+        &mut findings,
+        &mut suppressed,
+    );
+
+    // ADR-4: the TAINT-correlation pass (injection→consequence), appended AFTER the
+    // sequence pass. A no-op when no taint rule is loaded (engine.taints is empty), so
+    // the single-action + sequence output stays byte-identical. Taint findings append
+    // at the tail, preserving prior finding order.
+    crate::taint::match_taints(
+        actions,
+        &engine.taints,
         rules,
         suppress,
         &mut findings,
@@ -599,8 +616,8 @@ mod tests {
         for cs in &engine.signals {
             let rule = &data.detection.rules[cs.agt_index];
             assert!(
-                rule.sequence.is_none(),
-                "{} is a sequence rule but contributed a single-action signal",
+                rule.sequence.is_none() && rule.taint.is_none(),
+                "{} is a sequence/taint rule but contributed a single-action signal",
                 rule.agt_code
             );
             assert!(
@@ -623,6 +640,21 @@ mod tests {
             engine.sequences.len(),
             seq_rule_count,
             "every sequence rule compiles to exactly one CompiledSequence"
+        );
+
+        // ADR-4: the taint partition count equals the number of rules with a taint
+        // block (0 until F3 adds AGT-TRJ; the no-op match_taints keeps single-action
+        // + sequence output byte-identical until then).
+        let taint_rule_count = data
+            .detection
+            .rules
+            .iter()
+            .filter(|r| r.taint.is_some())
+            .count();
+        assert_eq!(
+            engine.taints.len(),
+            taint_rule_count,
+            "every taint rule compiles to exactly one CompiledTaint"
         );
     }
     use crate::rules::load_embedded;
