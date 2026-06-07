@@ -1076,23 +1076,30 @@ fn agt_trj_benign_trajectory_does_not_fire() {
 
 #[test]
 fn agt_trj_finbot_is_a_negative_control() {
-    // The committed FinBot fixture is DIRECT injection: payloads in the agent's own
-    // chat tool_use, refusals in tool_result, ZERO real-action sinks. It must fire
-    // ZERO AGT-TRJ (sink-existence: refusals end in chat, no downstream action).
+    // COMMITTED negative control (CI-guaranteed): a direct-injection trajectory where the
+    // injection marker reaches a tool-result (it taints) but the agent REFUSES via chat —
+    // the only downstream action is the chat tool, NOT a real-action sink. Sink-existence
+    // must fire ZERO AGT-TRJ. This exercises the core "structural, not deny-list" thesis
+    // in a fresh clone, independent of the (uncommitted) live FinBot capture.
+    assert!(
+        trj_ids("trj-direct-injection-refusal-negative.jsonl").is_empty(),
+        "committed direct-injection refusal negative control must fire zero AGT-TRJ"
+    );
+
+    // BONUS: if the real (uncommitted) FinBot capture is present locally, assert it too.
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/corpus/finbot/raw/finbot-1780783524-finbot-attack.jsonl");
-    if !path.exists() {
-        return; // fixture is uncommitted in some checkouts; skip if absent
+    if path.exists() {
+        let (stdout, _stderr, ok) = run(&["scan-session", &path.to_string_lossy(), "--format", "json"]);
+        assert!(ok);
+        let v: Value = serde_json::from_str(&stdout).expect("valid JSON");
+        let trj: Vec<&str> = v["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|f| f["id"].as_str())
+            .filter(|id| id.starts_with("AGT-TRJ"))
+            .collect();
+        assert!(trj.is_empty(), "finbot live capture must also fire zero AGT-TRJ; got {trj:?}");
     }
-    let (stdout, _stderr, ok) = run(&["scan-session", &path.to_string_lossy(), "--format", "json"]);
-    assert!(ok);
-    let v: Value = serde_json::from_str(&stdout).expect("valid JSON");
-    let trj: Vec<&str> = v["findings"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|f| f["id"].as_str())
-        .filter(|id| id.starts_with("AGT-TRJ"))
-        .collect();
-    assert!(trj.is_empty(), "finbot negative control must fire zero AGT-TRJ; got {trj:?}");
 }
