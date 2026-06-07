@@ -104,3 +104,36 @@ None recorded. A developer MAY measure precision/recall over their own private
 but such numbers are **non-gating and must not be committed** (they would embed
 private data and conflate fixture metrics with real-world accuracy). The CI gate
 relies on the synthetic corpus ONLY.
+
+## Independent corpora — non-gating (v1.4 HYBRID 2+3)
+
+These measure **bait-keyword surface coverage over labeled injection STRINGS — NOT
+injection-consequence detection** (an injection is untrusted DATA the agent reads,
+represented here as the agent's own action input; see BENCHMARK.md + the ADR). They
+drive a SEPARATE non-gating harness and never touch the synthetic CI gate.
+
+### F1 BASELINE — current engine, before any v1.4 rule (commit-of-record 9b18d2d, 2026-06-07)
+
+**AgentDojo** (ethz-spylab, MIT, v1.2.1; 35 injection-task GOALs) — reproduce with
+`cargo test -p apohara-compliance-scanner --test independent_corpus -- --ignored --nocapture`:
+
+- OVERALL recall: baseline 0.0286 (1/35) -> tuned 0.0286 (1/35).
+- Per category (tuned): data-exfiltration 0/12, web-exfiltration/phishing 0/4,
+  unauthorized-autonomous-action 0/10, financial-transaction 0/5,
+  financial-structuring 0/1, destructive-action 0/1, **pii-harvest 1/2**.
+- The single hit is the PII-harvest GOAL carrying "passport number" + "credit card
+  number" (existing AGT-PII-001 signals). Everything else is prose with no current
+  signal — exactly sub-gaps (a)/(b)/(c)/(d). This supersedes the anecdotal FinBot
+  "2/6": the measurable baseline is **1/35**.
+
+**AgentHarm** (ai-safety-institute, eval-only; 176 augmented prompts / 44 base) —
+reproduce with `HF_HOME=$PWD/eval/agentharm/.cache eval/.venv/bin/python
+scripts/eval/run_agentharm_eval.py` (numbers-only report at
+tests/corpus/agentharm-report.json):
+
+- Coverage: 0.0114 (2/176), only AGT-PII-001 (x2, both in the Harassment category).
+- HONEST READ: AgentHarm's categories (Drugs, Hate, Sexual, Copyright, Disinformation,
+  Fraud, Cybercrime, Harassment) are **content-harm**, largely **outside apohara's
+  scope** — apohara is a tool-action / compliance candidate-surfacer, NOT a
+  content-safety classifier. Low AgentHarm coverage is therefore mostly by-design, not
+  a closable gap. The on-target corpus for v1.4 gap closure is **AgentDojo**.

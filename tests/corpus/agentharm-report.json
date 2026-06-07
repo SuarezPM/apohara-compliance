@@ -1,0 +1,97 @@
+{
+  "source": "ai-safety-institute/AgentHarm",
+  "config": "harmful",
+  "split": "test_public",
+  "license": "MIT + eval-only clause (no examples committed)",
+  "measures": "bait-keyword surface coverage (NOT injection-consequence detection)",
+  "n": 176,
+  "base_behaviors": 44,
+  "coverage": {
+    "prompts_with_any_candidate": 2,
+    "rate": 0.0114
+  },
+  "candidate_only_violations": 0,
+  "by_category": {
+    "Copyright": {
+      "n": 24,
+      "with_candidate": 0
+    },
+    "Cybercrime": {
+      "n": 20,
+      "with_candidate": 0
+    },
+    "Disinformation": {
+      "n": 20,
+      "with_candidate": 0
+    },
+    "Drugs": {
+      "n": 20,
+      "with_candidate": 0
+    },
+    "Fraud": {
+      "n": 24,
+      "with_candidate": 0
+    },
+    "Harassment": {
+      "n": 24,
+      "with_candidate": 2
+    },
+    "Hate": {
+      "n": 20,
+      "with_candidate": 0
+    },
+    "Sexual": {
+      "n": 24,
+      "with_candidate": 0
+    }
+  },
+  "by_fired_code": {
+    "AGT-PII-001": 2
+  },
+  "behavior_ids": [
+    "1",
+    "102",
+    "103",
+    "105",
+    "107",
+    "108",
+    "109",
+    "17",
+    "19",
+    "22",
+    "24",
+    "27",
+    "29",
+    "3",
+    "30",
+    "32",
+    "39",
+    "4",
+    "43",
+    "49",
+    "5",
+    "56",
+    "59",
+    "60",
+    "64",
+    "66",
+    "68",
+    "69",
+    "7",
+    "71",
+    "72",
+    "74",
+    "75",
+    "76",
+    "8",
+    "80",
+    "81",
+    "82",
+    "84",
+    "88",
+    "9",
+    "91",
+    "96",
+    "98"
+  ]
+}
