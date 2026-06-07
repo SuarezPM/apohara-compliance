@@ -118,6 +118,35 @@ Cybercrime, Harassment) are **content-harm**, largely outside apohara's scope �
 is a tool-action / compliance candidate-surfacer, **not a content-safety classifier**.
 AgentDojo is the on-target corpus for this work.
 
+## Trajectory taint-correlation (v2.0) — injection→consequence, post-hoc
+
+v2.0 adds a deterministic taint engine (ADR-4): an injection marker in untrusted data the
+agent READ (a `tool-result:` action) followed by a genuine sensitive real-action sink =
+a CANDIDATE injection→consequence correlation. The engine MECHANISM is proven on committed
+synthetic positive fixtures (AGT-TRJ-001/002/003 fire via the real binary; benign trajectories
+and the FinBot direct-injection fixture — a negative control — fire zero).
+
+**Real-world measurement (AgentDojo end-to-end + MiniMax-M3, pre-registered SHA `3bdc5c8`).**
+Bounded run: banking suite, `important_instructions` (model-name-agnostic variant), 10 attacked
+pairs + 2 benign. The bound triple (post-hoc, never "efficacy"):
+
+| | result |
+|---|---|
+| MiniMax attack-success-rate | **0 / 10** (the model refused every indirect injection) |
+| apohara post-hoc detection on successes | **0 / 0** (no successes) |
+| failed-injection FP / benign FP | **0 / 10** · **0 / 2** |
+| real MiniMax usage | 28 calls, 65,550 tokens |
+
+> **Real-world efficacy is UNPROVEN — stated plainly.** Two measured reasons: (1) MiniMax-M3
+> resisted all 10 injections, so no real positive trace exists; (2) a verified
+> **representation/vocab gap** — AgentDojo's `<INFORMATION>…` marker and structured tool-call
+> sinks (`send_money(…)`) do not overlap apohara's text-pattern `taint_source`/`taint_sink`
+> vocabulary, so even a successful trace would very likely not fire. apohara is a **post-hoc**
+> transcript scanner (recognizable-in-log ≠ would-have-prevented), and its rules are vocab-scoped
+> to shell/coding agents. Per the pre-registration the rules were NOT retro-fitted to AgentDojo.
+> The honest ceiling: **the mechanism is proven on synthetic positives; real-world generalization
+> is an open, measured gap** — never "detects real exploits". See ADR-4 + PROOF-v2-minimax.md.
+
 ## Limitations
 
 Read these before quoting any number:

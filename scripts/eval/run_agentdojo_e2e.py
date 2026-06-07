@@ -30,7 +30,12 @@ AUTH = os.path.expanduser("~/.local/share/opencode/auth.json")
 BIN = "target/release/apohara-compliance-scanner"
 RULES = "references"
 SUITE = "banking"
-ATTACK = "important_instructions"
+# NOTE (setup fix, documented): the base `important_instructions` attack embeds the
+# agent's MODEL NAME in the injection and requires it to be in AgentDojo's model
+# registry; MiniMax-M3 is not registered, so we use the model-name-agnostic registered
+# variant. This is a measurement-input compatibility fix, NOT rule-tuning — the AGT-TRJ
+# rules remain frozen at 8b593b3. Recorded in PREREG + PROOF.
+ATTACK = "important_instructions_no_model_name"
 BENCH = "v1.2.1"
 # Bounded N (documented). user_task × injection_task grid + benign user_tasks.
 USER_TASKS = ["user_task_0", "user_task_1"]
@@ -90,7 +95,11 @@ def main() -> int:
     pipeline = AgentPipeline(
         [SystemMessage(sysmsg), InitQuery(), llm, ToolsExecutionLoop([ToolsExecutor(), llm])]
     )
-    pipeline.name = "minimax-m3-none"
+    # AgentDojo's attack registry requires a recognized model token in pipeline.name;
+    # MiniMax isn't registered, so we use the generic "local" -> "Local model" mapping
+    # (honest: no false GPT-4/Claude branding). With the no_model_name variant the model
+    # name does not appear in the injection text anyway. Setup-only; rules stay frozen.
+    pipeline.name = "minimax-m3-local-none"
 
     suite = get_suites(BENCH)[SUITE]
     attack = load_attack(ATTACK, suite, pipeline)

@@ -161,3 +161,19 @@ tool-action/compliance scanner.
 
 Rules: 17 -> 20 (added AGT-EXF-004, AGT-EXF-005, AGT-FIN-003). Engine UNTOUCHED (A1
 data-only sufficed; A3/A2 not invoked). See ADR-3.
+
+## v2.0 Trajectory taint-correlation (ADR-4) + real-world measurement (2026-06-07)
+
+Engine: opt-in `taint:` block (taint.rs, append-only after the sequence pass). AGT-TRJ-001/002/003
+(injection→exfil/destructive/financial). Synthetic gate UNMOVED 1.0000/1.0000/FP=0 throughout
+(taint rules need 2 actions; single-item gate scans cannot fire them). Mechanism proof-of-life:
+the 3 committed synthetic positives fire their rule via the real binary; benign + FinBot
+negative-control fire zero.
+
+REAL-WORLD (AgentDojo e2e + MiniMax-M3, pre-reg SHA 3bdc5c8): banking, important_instructions
+(model-name-agnostic), 10 attacked + 2 benign. Bound triple — attack-success **0/10** (MiniMax
+refused all), post-hoc detection **0/0**, failed-injection FP **0/10**, benign FP **0/2**; real
+usage 28 calls / 65,550 tokens. Honest verdict: real-world efficacy **UNPROVEN** — (1) zero
+successful injections, (2) verified representation/vocab gap (AgentDojo `<INFORMATION>` marker +
+structured `send_money(…)` sinks do not overlap apohara's text vocab). Rules NOT retro-fitted
+(pre-registration). Mechanism proven on synthetic positives; generalization is the open gap.
