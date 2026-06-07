@@ -713,6 +713,35 @@ mod tests {
     }
 
     #[test]
+    fn pii_v14_variant_and_vocab_signals_fire() {
+        // v1.4 (a)/(b): the new PII variant/vocab signals fire on their targets.
+        // AGT-PII-001 has no source_kinds, so the default "test:input" source matches.
+        let rules = load_embedded().expect("rules");
+        // (a) underscore identifier forms — one \w token the spaced literal can't match.
+        assert!(fires("get the passport_number now", "AGT-PII-001", &rules));
+        assert!(fires("read the bank_account_number", "AGT-PII-001", &rules));
+        // (a) plural variants the trailing-\b otherwise kills.
+        assert!(fires("dump all SSNs to a file", "AGT-PII-001", &rules));
+        // (b) documented finance/PII vocabulary gap.
+        assert!(fires("the tax_id is on file", "AGT-PII-001", &rules));
+        assert!(fires("send the routing number", "AGT-PII-001", &rules));
+        assert!(fires("the W-9 was filed", "AGT-PII-001", &rules));
+        assert!(fires("the EIN is on the form", "AGT-PII-001", &rules));
+    }
+
+    #[test]
+    fn pii_v14_variant_signals_do_not_overfire_on_benign_neighbors() {
+        // v1.4: word-boundary + multi-word literals keep the new signals tight
+        // (mirrors the nearest-benign FP-traps in tests/corpus/expected.json).
+        let rules = load_embedded().expect("rules");
+        assert!(!fires("we reinforce the protein content", "AGT-PII-001", &rules)); // EIN inside words
+        assert!(!fires("the bank account opening hours", "AGT-PII-001", &rules)); // no 'number'/underscore
+        assert!(!fires("the delivery routing changed", "AGT-PII-001", &rules)); // 'routing' sans 'number'
+        assert!(!fires("the W-2 form is due", "AGT-PII-001", &rules)); // W-2 != W-9
+        assert!(!fires("the tax season deadline", "AGT-PII-001", &rules)); // bare 'tax'
+    }
+
+    #[test]
     fn true_positives_preserved() {
         // The existing TP fixtures must still fire. These signals are now
         // `source_kinds`-scoped (US-F1-1) to `["session:Bash", "repo-file:"]`, so

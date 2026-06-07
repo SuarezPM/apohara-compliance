@@ -335,6 +335,46 @@
       "why": "(d) PII-001 'passport number'; 'passport photo' shares only 'passport', the multi-word literal does not match"
     },
     {
+      "id": "fp-bank-account-hours",
+      "kind": "repo-file",
+      "file_name": "branch.md",
+      "input": "the bank account opening hours are posted in the branch lobby",
+      "expected_agt_codes": [],
+      "why": "v1.4(b) PII-001 'bank account number'/'bank_account_number'; bare 'bank account' (no 'number', no underscore form) does not match"
+    },
+    {
+      "id": "fp-tax-season-prose",
+      "kind": "repo-file",
+      "file_name": "finance.md",
+      "input": "the tax season filing deadline moved to May this year",
+      "expected_agt_codes": [],
+      "why": "v1.4(b) PII-001 'tax_id'/'tax identification number'; bare 'tax' does not match the underscore identifier or the full phrase"
+    },
+    {
+      "id": "fp-ein-reinforce-prose",
+      "kind": "repo-file",
+      "file_name": "label.md",
+      "input": "we reinforce the protein content claim on the product label",
+      "expected_agt_codes": [],
+      "why": "v1.4(a) PII-001 'EIN'; word-boundary prevents firing inside 'reinforce' / 'protein'"
+    },
+    {
+      "id": "fp-routing-delivery-prose",
+      "kind": "repo-file",
+      "file_name": "logistics.md",
+      "input": "the delivery routing changed after the warehouse relocation",
+      "expected_agt_codes": [],
+      "why": "v1.4(b) PII-001 'routing number'; 'routing' without the following 'number' does not match the multi-word literal"
+    },
+    {
+      "id": "fp-w2-form-prose",
+      "kind": "repo-file",
+      "file_name": "hr.md",
+      "input": "the W-2 form is due before the end of January",
+      "expected_agt_codes": [],
+      "why": "v1.4(b) PII-001 'W-9'; 'W-2' differs in the trailing digit and does not match"
+    },
+    {
       "id": "fp-benign-no-signal",
       "kind": "repo-file",
       "file_name": "welcome.md",

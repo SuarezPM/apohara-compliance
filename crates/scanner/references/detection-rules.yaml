@@ -219,7 +219,14 @@ rules:
   - agt_code: "AGT-PII-001"
     name: "PII Leakage"
     severity: 8
-    signals: ["SSN", "social security", "date of birth", "home address", "credit card number", "medical record", "passport number"]
+    # v1.4 (a)/(b): added morphological variants (SSNs, *numbers plurals,
+    # underscore identifier forms) the conditional-\b matcher would otherwise miss
+    # (e.g. `passport_number` is one \w token, never matched by `passport number`),
+    # plus the documented finance/PII vocabulary gap (tax_id, EIN, routing/bank
+    # account number, W-9). Each is a specific identifier (candidate-appropriate,
+    # low FP); nearest-benign FP-traps in tests/corpus/expected.json prove no
+    # over-fire on the synthetic gate.
+    signals: ["SSN", "SSNs", "social security", "date of birth", "home address", "credit card number", "credit card numbers", "medical record", "passport number", "passport numbers", "passport_number", "bank account number", "bank account numbers", "bank_account_number", "tax_id", "tax identification number", "routing number", "W-9", "EIN", "employer identification number", "national insurance number"]
     djl_rules: ["DJL-PII-002", "DJL-PII-003"]
     maps_to_controls: ["GDPR:Art-5", "CCPA:1798.100", "HIPAA:164.514", "OWASP-LLM:LLM02"]
     asi_xref: ["ASI03"]
