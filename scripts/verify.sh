@@ -789,6 +789,29 @@ else
   bad "action/README.md missing candidate/never-error framing"
 fi
 
+echo "== v1.4 AgentHarm eval-only leak guard (license + canary) =="
+# AgentHarm is eval-only / no-redistribution and carries a canary GUID. The eval/
+# tree (venv, HF cache, downloaded examples, canary) is fully gitignored, so the
+# structural guarantee is: NOTHING under eval/ is ever tracked. The canary pattern
+# is read from the gitignored eval/agentharm/.canary, so the literal GUID never
+# appears in this (tracked) script. Grep TRACKED content only — never the working
+# tree, which legitimately holds the canary under the gitignored eval/.
+if git ls-files eval/ 2>/dev/null | grep -q .; then
+  bad "leak guard: a file under eval/ is tracked (eval/ must be fully gitignored)"
+else
+  pass "leak guard: nothing under eval/ is tracked"
+fi
+if [ -f eval/agentharm/.canary ]; then
+  _canary="$(tr -d '[:space:]' < eval/agentharm/.canary)"
+  if [ -n "$_canary" ] && git ls-files -z | xargs -0 grep -lF "$_canary" 2>/dev/null | grep -q .; then
+    bad "leak guard: AgentHarm canary GUID found in a TRACKED file"
+  else
+    pass "leak guard: AgentHarm canary GUID not present in any tracked file"
+  fi
+else
+  pass "leak guard: local canary file absent (eval/ not set up; canary check vacuous)"
+fi
+
 echo
 if [ "$fail" -eq 0 ]; then echo "ALL VERIFICATION CHECKS PASSED"; else echo "VERIFICATION FAILED"; fi
 exit "$fail"

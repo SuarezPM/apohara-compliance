@@ -14,3 +14,13 @@ target/
 # the bundler and must NOT be committed (the canonical copy lives in
 # crates/scanner/references/, with the repo-root references/ a symlink to it).
 /skills/apohara-compliance/references/
+
+# v1.4 eval harness (independent corpora). The whole eval tree is gitignored:
+# the uv venv, the HuggingFace cache, the downloaded AgentHarm examples, and the
+# canary GUID live here LOCAL-ONLY. AgentHarm is eval-only / no-redistribution,
+# so nothing under eval/ may ever be committed (the leak guard in scripts/verify.sh
+# enforces "nothing under eval/ is tracked"). Committed, redistributable artifacts
+# live OUTSIDE eval/: reproducibility tooling under scripts/eval/, the AgentDojo
+# corpus (MIT) under tests/corpus/agentdojo/, and the AgentHarm numbers/IDs-only
+# report (schema-validated) at tests/corpus/agentharm-report.json.
+/eval/
