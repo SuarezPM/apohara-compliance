@@ -21,7 +21,6 @@ Run:  VIRTUAL_ENV=$PWD/eval/.venv eval/.venv/bin/python scripts/eval/extract_age
 Output (committable, MIT): tests/corpus/agentdojo/{raw/<suite>.jsonl, expected.json, SOURCE.md}
 """
 import json
-import os
 import pathlib
 
 BENCHMARK_VERSION = "v1.2.1"
