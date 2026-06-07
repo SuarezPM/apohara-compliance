@@ -74,6 +74,50 @@ The printed block is the source of every number above. A historical record of me
 runs lives in
 [`crates/scanner/references/validation-log.md`](crates/scanner/references/validation-log.md).
 
+## Independent corpora (v1.4) — non-gating
+
+The synthetic gate above is engine-derived (corpus and rules co-evolved). v1.4 adds two
+**independent**, externally-authored corpora to measure coverage against attacks the
+project did not write, and to drive the data-first prose-rule work.
+
+> **What this measures (read first).** An injected attack is untrusted DATA the agent
+> *reads* (the bait), not the agent's own action; apohara scans the agent's actions. To
+> run the rule engine over this content we represent each attack string as an action
+> input. The result is therefore (kept on one line for the grep-checkable scoping AC):
+>
+> **bait-keyword surface coverage over labeled injection STRINGS — NOT injection-consequence detection**
+>
+> It shows whether apohara's
+> vocabulary + word-boundary + source/context machinery surfaces the attack *class*; it
+> does **not** show whether apohara detects the *consequence* of a successful injection.
+> Modeling attack *trajectories* (the agent's post-injection tool calls) is the right
+> vehicle for consequence detection and is recorded as future work (ADR-3 follow-up).
+
+**AgentDojo** (ethz-spylab, MIT; 35 injection-task GOALs across workspace/travel/banking/
+slack) — committed at `tests/corpus/agentdojo/`, run with
+`cargo test -p apohara-compliance-scanner --test independent_corpus -- --ignored --nocapture`:
+
+| stage | overall recall | notes |
+|---|---|---|
+| v1.4 F1 baseline (pre-rule) | **1 / 35 (0.029)** | only a passport+credit-card PII GOAL fired; supersedes the anecdotal FinBot "2/6" |
+| v1.4 F2 (data-first rules)  | **23 / 35 (0.657)** | data-exfil 10/12, web-exfil 4/4, financial 5/5, structuring 1/1, PII 2/2, unauthorized-action 1/10, destructive 0/1 |
+
+The 12 remaining misses are **honestly out of reach for prose detection**: 9 are
+unauthorized-but-benign-looking actions (create a calendar event, send an arbitrary
+email) whose maliciousness is injection context the scanner cannot see from the action
+text; 1 is a single "delete the file" destructive phrasing left unhandled to avoid
+false positives; 2 are security-code exfiltration phrasings. Closing these would require
+trajectory modeling or precision-eroding overreach — neither is in scope for v1.4.
+
+**AgentHarm** (ai-safety-institute; 176 augmented prompts / 44 base behaviors) —
+**eval-only / no-redistribution**, so no examples are committed; only a numbers/IDs-only
+report at `tests/corpus/agentharm-report.json` (schema-validated). Coverage:
+**2 / 176 (0.011)**, unchanged baseline→F2. This is expected and **by design**:
+AgentHarm's categories (Drugs, Hate, Sexual, Copyright, Disinformation, Fraud,
+Cybercrime, Harassment) are **content-harm**, largely outside apohara's scope — apohara
+is a tool-action / compliance candidate-surfacer, **not a content-safety classifier**.
+AgentDojo is the on-target corpus for this work.
+
 ## Limitations
 
 Read these before quoting any number:
@@ -83,8 +127,12 @@ Read these before quoting any number:
 - **Candidate-only framing.** The scanner emits `CANDIDATE` findings (`note`/`warning`) for
   human review — "precision" here means "of the candidates flagged, how many match the
   labeled trap", not "how many real compliance violations exist".
-- **No ground truth beyond `expected.json`.** There is no independent, third-party labeled
-  dataset; the ground truth is the committed fixture.
+- **The synthetic gate has no third-party ground truth.** Its ground truth is the committed
+  fixture. v1.4 adds the *independent* AgentDojo/AgentHarm corpora above as a non-gating
+  cross-check, but those measure bait-keyword surface coverage (not consequence detection)
+  and AgentDojo's labeling is best-effort (see `tests/corpus/agentdojo/SOURCE.md`).
+- **English only.** Both the synthetic gate and the independent corpora are English; the
+  Spanish-language detection gap is **documented but not closed** (out of scope for v1.4).
 - **The tuned 1.00 is partly true by construction.** The corpus and the engine's context
   rules co-evolved, so a perfect tuned score is expected on *this* corpus. The metric that
   carries real signal is the **baseline → tuned delta** (0.6964 → 1.0000), which shows the

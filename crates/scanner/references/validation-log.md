@@ -137,3 +137,27 @@ tests/corpus/agentharm-report.json):
   scope** — apohara is a tool-action / compliance candidate-surfacer, NOT a
   content-safety classifier. Low AgentHarm coverage is therefore mostly by-design, not
   a closable gap. The on-target corpus for v1.4 gap closure is **AgentDojo**.
+
+### F2 POST-RULES — data-first prose rules added (2026-06-07)
+
+Synthetic gate UNMOVED throughout F2: tuned precision=1.0000 recall=1.0000 (TP=39 FP=0
+FN=0) after every rule; 10 nearest-benign FP-traps added (41 -> 51 traps); per-rule
+"zero unexpected fires vs the full trap set" verified each step.
+
+**AgentDojo** OVERALL recall **1/35 -> 23/35 (0.657)**:
+- F2-1 (PII variants + finance vocab on AGT-PII-001): pii-harvest 1/2 -> 2/2 (1->2/35).
+- F2-2 (AGT-EXF-004 bulk-messaging-exfil + AGT-EXF-005 web-exfil, broad source +
+  require_context): data-exfiltration 0/12 -> 9/12, web-exfiltration 0/4 -> 4/4 (->15/35).
+- F2-3 (AGT-FIN-003 prose money movement / structuring, broad + require_context):
+  financial-transaction 0/5 -> 5/5, financial-structuring 0/1 -> 1/1, data-exfil 9 -> 10/12
+  (exfil-via-transaction), unauthorized-action 0 -> 1/10 (->23/35).
+- Honest remaining misses (12): unauthorized-but-benign-looking actions (9; out of reach
+  without trajectory context), one "delete the file" destructive prose (skipped for FP
+  risk), two security-code exfil phrasings.
+
+**AgentHarm** coverage **2/176 -> 2/176 (0.011)** — UNCHANGED. The new exfil/financial
+prose rules do not fire on content-harm prompts; reconfirms AgentHarm is off-target for a
+tool-action/compliance scanner.
+
+Rules: 17 -> 20 (added AGT-EXF-004, AGT-EXF-005, AGT-FIN-003). Engine UNTOUCHED (A1
+data-only sufficed; A3/A2 not invoked). See ADR-3.
