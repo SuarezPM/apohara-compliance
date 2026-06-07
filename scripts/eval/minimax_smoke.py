@@ -9,7 +9,6 @@ Logs PROOF of real API use (model + usage tokens) — never the key. Run:
 """
 import json
 import os
-import sys
 
 AUTH = os.path.expanduser("~/.local/share/opencode/auth.json")
 
