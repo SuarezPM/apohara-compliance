@@ -100,6 +100,9 @@ fn trajectory_corpus_report() {
     eprintln!("   NOTE: real-world (AgentDojo+MiniMax) numbers — see BENCHMARK.md (Phase 5A),");
     eprintln!("         reported as the bound triple, post-hoc + template-scoped (never 'efficacy').");
 
-    // Liveness only — NO recall/precision assert (this is documentation, never a gate).
-    assert!(!positives.is_empty());
+    // Liveness only (this test is #[ignore], never a CI gate): the end-to-end harness
+    // ran the real binary and at least one committed synthetic positive was recognized.
+    // This is NOT a recall floor — it only proves the harness is wired, like
+    // independent_corpus.rs's liveness assert.
+    assert!(fired >= 1, "harness liveness: expected ≥1 synthetic positive to fire");
 }
