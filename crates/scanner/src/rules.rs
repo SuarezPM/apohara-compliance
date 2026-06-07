@@ -127,8 +127,8 @@ impl std::error::Error for RulesError {}
 // but not yet read by application code, hence the targeted dead_code allows that
 // document the schema rather than dropping fields.
 
-/// `detection-rules.yaml` — header + the AGT-* rules (16 single-action + the
-/// AGT-MEM-001 sequence rule, ADR-2).
+/// `detection-rules.yaml` — header + the AGT-* rules (19 single-action +
+/// AGT-MEM-001 sequence rule (ADR-2) + AGT-TRJ-001/002/003 taint rules (ADR-4)).
 #[derive(Debug, Clone, Deserialize)]
 pub struct DetectionRuleSet {
     pub schema_version: u32,
@@ -141,8 +141,8 @@ pub struct DetectionRuleSet {
 /// and `deny_context` are the ONLY three context modifiers. This set is FROZEN —
 /// no 4th context field may be added without a new ADR. Any richer matching
 /// (taint/dataflow, tree-sitter/AST) is a separate ADR, not a quiet 4th field.
-/// All three are `#[serde(default)]` so the existing 16-rule YAML (which omits
-/// them) stays valid and an empty value is backward-compatible (matches any).
+/// All three are `#[serde(default)]` so the existing single-action YAML (which
+/// omits them) stays valid and an empty value is backward-compatible (matches any).
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct DetectionRule {
@@ -206,7 +206,7 @@ pub struct DetectionRule {
     /// Multi-action SEQUENCE rule (ADR-2). When present, this rule is NOT a
     /// single-action rule: `compile_rules` excludes it from the single-action
     /// signal set (its `signals` stay empty) and the separate second pass
-    /// (`sequence.rs`) handles it. Absent (the default for all 16 single-action
+    /// (`sequence.rs`) handles it. Absent (the default for all single-action
     /// rules) ⇒ ordinary single-action matching, byte-identically unchanged.
     /// This is a NEW rule-shape discriminator, NOT a 4th context-DSL field — the
     /// CLOSED 3-field context DSL (ADR-1) is untouched.
@@ -656,9 +656,9 @@ mod tests {
         assert_eq!(data.detection.schema_version, SCHEMA_VERSION);
         assert_eq!(
             data.detection.rules.len(),
-            20,
-            "20 AGT-* rules expected (19 single-action + AGT-MEM-001 sequence rule, ADR-2); \
-             v1.4 added AGT-EXF-004/005 (prose exfil) + AGT-FIN-003 (prose money movement)"
+            23,
+            "23 AGT-* rules expected (19 single-action + AGT-MEM-001 sequence (ADR-2) + \
+             AGT-TRJ-001/002/003 taint rules (ADR-4))"
         );
         assert_eq!(data.asi.risks.len(), 10, "ASI01..ASI10");
         assert_eq!(data.controls.controls.len(), 49, "49 controls");

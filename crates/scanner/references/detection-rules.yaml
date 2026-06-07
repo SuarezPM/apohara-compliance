@@ -390,3 +390,69 @@ rules:
       sink_step:
         signals: ["INSERT INTO embeddings", "upsert", "vector store", "vectorstore", "save to memory", "write to memory", "add to memory", "persist to memory", "memorize", "chroma", "qdrant", "faiss", "pinecone"]
         source_kinds: ["session:Bash", "otlp:"]
+
+  # --- Trajectory Taint-Correlation (AGT-TRJ) — ADR-4, ASI02 indirect injection ---
+  # TAINT rules (ADR-4): an injection marker in UNTRUSTED DATA the agent read
+  # (taint_source on the `tool-result:` channel) FOLLOWED BY a genuine sensitive
+  # real-action (taint_sink on session:Bash/Write/Edit — NEVER chat). Candidate-only
+  # injection→consequence CORRELATION; not proven causation, not inline prevention.
+  # Source deny_context drops doc/illustration quotes of a marker; sink require_context
+  # demands a specifically-sensitive action (sink-existence + these guards = FP≈0).
+  - agt_code: "AGT-TRJ-001"
+    name: "Indirect Injection → Data Exfiltration (trajectory)"
+    severity: 9
+    signals: []
+    djl_rules: ["DJL-EXF-001", "DJL-EXF-002"]
+    maps_to_controls: ["OWASP-LLM:LLM01", "OWASP-LLM:LLM02", "GDPR:Art-32", "SP800-53:AC-4"]
+    asi_xref: ["ASI02"]
+    atlas_xref: ["AML.T0051", "AML.T0051.001"]
+    default_confidence: 0.6
+    citation: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    taint:
+      taint_source:
+        signals: ["[[SYSTEM]]", "ignore previous", "ignore all previous", "disregard previous", "disregard the above", "new instructions:", "IGNORE PREVIOUS CONTEXT", "system override", "you are now"]
+        source_kinds: ["tool-result:"]
+        deny_context: ["documentation", "for example", "as an example", "illustrat", "this is a test"]
+      taint_sink:
+        signals: ["curl http", "curl https", "wget http", "wget https", "requests.post", "requests.get", "send the contents", "email the contents", "post to the website", "scp "]
+        source_kinds: ["session:Bash", "session:Write", "session:Edit"]
+        require_context: ["@[A-Za-z0-9._%+-]+\\.[A-Za-z]{2,}", "https?://", "www\\."]
+  - agt_code: "AGT-TRJ-002"
+    name: "Indirect Injection → Destructive Action (trajectory)"
+    severity: 10
+    signals: []
+    djl_rules: ["DJL-MIS-001", "DJL-MIS-002"]
+    maps_to_controls: ["OWASP-LLM:LLM01", "SP800-53:SI-7", "EU-AI-ACT:Art-9", "ISO27001:A.12.1"]
+    asi_xref: ["ASI02"]
+    atlas_xref: ["AML.T0051", "AML.T0051.001"]
+    default_confidence: 0.6
+    citation: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    taint:
+      taint_source:
+        signals: ["[[SYSTEM]]", "ignore previous", "ignore all previous", "disregard previous", "disregard the above", "new instructions:", "IGNORE PREVIOUS CONTEXT", "system override", "you are now"]
+        source_kinds: ["tool-result:"]
+        deny_context: ["documentation", "for example", "as an example", "illustrat", "this is a test"]
+      taint_sink:
+        signals: ["rm -rf", "DROP TABLE", "DELETE FROM", "shred", "format disk", "wipe", "git push --force", "truncate table"]
+        source_kinds: ["session:Bash", "session:Write", "session:Edit"]
+        deny_context: ["--dry-run", "dry run", "example"]
+  - agt_code: "AGT-TRJ-003"
+    name: "Indirect Injection → Financial Action (trajectory)"
+    severity: 10
+    signals: []
+    djl_rules: ["DJL-MIS-006", "DJL-POL-003"]
+    maps_to_controls: ["OWASP-LLM:LLM01", "PCI-DSS:v4-10.7", "FinCEN:31-CFR-1020", "SOC2:CC9.1"]
+    asi_xref: ["ASI02"]
+    atlas_xref: ["AML.T0051", "AML.T0051.001"]
+    default_confidence: 0.6
+    citation: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    taint:
+      taint_source:
+        signals: ["[[SYSTEM]]", "ignore previous", "ignore all previous", "disregard previous", "disregard the above", "new instructions:", "IGNORE PREVIOUS CONTEXT", "system override", "you are now"]
+        source_kinds: ["tool-result:"]
+        deny_context: ["documentation", "for example", "as an example", "illustrat", "this is a test"]
+      taint_sink:
+        signals: ["wire transfer", "send a transaction", "ACH payment", "send as much money", "modify the recipient", "transfer $"]
+        source_kinds: ["session:Bash", "session:Write", "session:Edit"]
+        require_context: ["[A-Z]{2}[0-9]{2}[0-9]{6,}", "\\bIBAN\\b", "to the account", "\\$[0-9]", "wire", "ACH"]
+        deny_context: ["confirmation", "receipt"]

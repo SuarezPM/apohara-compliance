@@ -1036,3 +1036,63 @@ fn otlp_persist_without_preceding_marker_does_not_fire_mem001() {
     assert!(!ids.contains(&"AGT-MEM-001"), "persist alone must not fire AGT-MEM-001; ids: {ids:?}");
     let _ = std::fs::remove_file(&path);
 }
+
+// --- ADR-4 (v2.0): trajectory taint rules fire via the REAL binary -----------
+// Proof-of-life on committed synthetic positives + the finbot negative control.
+
+fn trj_ids(file: &str) -> Vec<String> {
+    let path = fixtures().join(file).to_string_lossy().into_owned();
+    let (stdout, stderr, ok) = run(&["scan-session", &path, "--format", "json"]);
+    assert!(ok, "scan-session {file} should exit 0; stderr:\n{stderr}");
+    let v: Value = serde_json::from_str(&stdout).expect("valid JSON report");
+    let mut ids: Vec<String> = v["findings"]
+        .as_array()
+        .expect("findings array")
+        .iter()
+        .filter_map(|f| f["id"].as_str())
+        .filter(|id| id.starts_with("AGT-TRJ"))
+        .map(str::to_string)
+        .collect();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+#[test]
+fn agt_trj_synthetic_positives_fire_their_rule() {
+    assert_eq!(trj_ids("trj001-exfil-positive.jsonl"), vec!["AGT-TRJ-001"]);
+    assert_eq!(trj_ids("trj002-destructive-positive.jsonl"), vec!["AGT-TRJ-002"]);
+    assert_eq!(trj_ids("trj003-financial-positive.jsonl"), vec!["AGT-TRJ-003"]);
+}
+
+#[test]
+fn agt_trj_benign_trajectory_does_not_fire() {
+    // Tainted read followed by a benign, non-sensitive action (no sink) → no fire.
+    assert!(
+        trj_ids("trj-benign-negative.jsonl").is_empty(),
+        "a tainted read + benign action must not fire any AGT-TRJ"
+    );
+}
+
+#[test]
+fn agt_trj_finbot_is_a_negative_control() {
+    // The committed FinBot fixture is DIRECT injection: payloads in the agent's own
+    // chat tool_use, refusals in tool_result, ZERO real-action sinks. It must fire
+    // ZERO AGT-TRJ (sink-existence: refusals end in chat, no downstream action).
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/corpus/finbot/raw/finbot-1780783524-finbot-attack.jsonl");
+    if !path.exists() {
+        return; // fixture is uncommitted in some checkouts; skip if absent
+    }
+    let (stdout, _stderr, ok) = run(&["scan-session", &path.to_string_lossy(), "--format", "json"]);
+    assert!(ok);
+    let v: Value = serde_json::from_str(&stdout).expect("valid JSON");
+    let trj: Vec<&str> = v["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|f| f["id"].as_str())
+        .filter(|id| id.starts_with("AGT-TRJ"))
+        .collect();
+    assert!(trj.is_empty(), "finbot negative control must fire zero AGT-TRJ; got {trj:?}");
+}
