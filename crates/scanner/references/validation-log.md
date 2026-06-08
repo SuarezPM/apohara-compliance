@@ -178,6 +178,46 @@ successful injections, (2) verified representation/vocab gap (AgentDojo `<INFORM
 structured `send_money(…)` sinks do not overlap apohara's text vocab). Rules NOT retro-fitted
 (pre-registration). Mechanism proven on synthetic positives; generalization is the open gap.
 
+## v2.1 WS1 — Representation-aware taint (ADR-5 / US-2) + measurement (2026-06-07)
+
+Engine: parser emits a NEW additive `sink:{name}` source-kind (reserved PREFIX, collision-proof —
+the Rev-2 `.sink` suffix was rejected for colliding with `repo-path:`/`repo-file:` filenames, N1)
+carrying a deterministic canonical role string (`const SINK_GRAMMAR`, authority-role fields only:
+recipient/amount/url/command). A one-line `starts_with("sink:")` guard excludes it from the
+single-action loop (byte-identical; A-NEW-1 two-case `repo-path:`/`repo-file:` regression guards it).
+AGT-TRJ-001/002/003 gained `source_kinds:["sink:"]` + structured `require_context`, plus a
+taxonomy-derived generic injection-marker `taint_source` vocab (OWASP ASI02:2026 / AITG-APP-02 /
+IPI canary families — each cited in detection-rules.yaml). Rule count UNCHANGED (23; rules extended,
+none added). `compile_signal` untouched; FROZEN DSL intact.
+
+Gate: precision=1.0000 recall=1.0000 FP=0 — and the FP=0 invariant is now CI-ENFORCED via
+`assert_eq!(eng.fp, 0)` (A5/M1; previously only precision≥0.85 was asserted). 4/4 synthetic
+trajectory positives fire (the new `trj-representation-aware-positive` fires AGT-TRJ-001+003);
+benign trap + FinBot negative-control fire zero.
+
+MEASUREMENT (pre-reg SHA `ac88825`, rules frozen BEFORE measuring, no LLM, no retro-fit):
+AgentDojo single-action recall 23/35 UNCHANGED (WS1 added no single-action prose rules); the
+generic-marker vocab covers AgentDojo's `important_instructions` marker class in VOCABULARY, but
+the committed AgentDojo corpus is flat-bait (0 trajectory items) → the structured-sink
+representation is measured on the synthetic positive ONLY. Real-world efficacy remains UNPROVEN;
+live capture deferred (A10). See ADR-5 + BENCHMARK.
+
+## v2.1 WS2-a — A3 session normalization + F1 destructive family (ADR-5 / AC3.1-3.2) (2026-06-07)
+
+Engine: `relevant_input` (SESSION value picker, risk LOW) normalizes its picked value before it
+becomes an ObservedAction — zero-width strip → frozen confusable/homoglyph fold (Unicode
+confusables.txt **15.1.0**, small in-file table) → Unicode NFKC (`unicode-normalization` 0.1.25,
+pure-Rust → tinyvec, dep-graph-clean) → whitespace canonicalization. Hand-authored morphology stays
+EMPTY/frozen (no `truncate`→`truncated` regression). A2 identity test: `normalize(input)==input` for
+every session corpus input (the gate-protection guarantee) + determinism (5×). **SESSION-ONLY
+(M4):** `parse_repo` is NOT normalized — repo-file evasion is a documented deferred gap (30/101 gate
+paths, 0/56 repo-file).
+
+F1: anchored destructive-command family added to AGT-MIS-001 (`rm -fr`, `rm -r -f`,
+`rm --recursive --force`, `dd if=`, `mkfs`, `TRUNCATE TABLE`), each with its nearest benign FP-trap
+in the same commit. Corpus 88 → 100. Gate stays 1.0000/1.0000/FP=0. `compile_signal` untouched; no
+4th DSL field (families are `signals`).
+
 ## v2.1 WS2-b — Structural shell tokenizer (ADR-5 S1 / AC3.3) (2026-06-07)
 
 Engine: a NEW opt-in `shell:` rule construct (shell.rs, append-only AFTER the taint pass,

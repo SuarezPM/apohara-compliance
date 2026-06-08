@@ -7,13 +7,14 @@ corpus, gated on every `cargo test`.
 > [!IMPORTANT]
 > These are **fixture metrics on a 100% synthetic, hand-crafted corpus** — they are **not**
 > a claim of real-world accuracy. The headline result is the **false-positive reduction
-> (precision 0.63 → 1.00 at unchanged recall)**, not the absolute 1.00. See
+> (precision 0.64 → 1.00, recall 0.92 → 1.00)**, not the absolute 1.00. See
 > [Limitations](#limitations) — the 1.00 is partly true *by construction*.
 
 ## Headline: false positives removed without losing recall
 
 The tuning eliminates the substring matcher's false positives — **precision rises
-0.6349 → 1.0000 while recall stays 1.0000** — on the corpus below.
+0.6389 → 1.0000, and tuned recall (1.0000) exceeds the naive baseline (0.9200)** — on the
+corpus below.
 
 ## Methodology
 
@@ -29,24 +30,26 @@ to the labeled ground truth. It enforces two CI floors:
 The "substring baseline" is a deliberately naive matcher (raw substring containment) used
 as the control to isolate what the tuned engine's word-boundary + context logic buys.
 
-**Corpus:** 88 items — 52 false-positive traps + 36 true-positives.
+**Corpus:** 101 items — 59 false-positive traps + 42 true-positives.
 
 ## Overall results
 
 | Matcher (same synthetic corpus)                | Precision | Recall | TP code-matches | FP | FN |
 |------------------------------------------------|-----------|--------|-----------------|----|----|
-| Naive substring baseline                       | 0.6349    | 1.0000 | 40              | 23 | 0  |
-| Tuned engine (regex + word-boundary + context) | 1.0000    | 1.0000 | 40              | 0  | 0  |
+| Naive substring baseline                       | 0.6389    | 0.9200 | 46              | 26 | 4  |
+| Tuned engine (regex + word-boundary + context) | 1.0000    | 1.0000 | 50              | 0  | 0  |
 
-The tuned engine removes all 23 substring false positives without dropping a single true
-positive. ("TP code-matches" counts AGT-code hits, not corpus items — the per-rule table
-below sums to it.)
+The tuned engine removes all 26 substring false positives **and** recovers the 4 true positives
+the naive matcher misses — the structural `shlex` shell pass (v2.1) catches flag-reordered
+destructive commands a substring scan cannot, so tuned recall 1.0000 > baseline 0.9200.
+("TP code-matches" counts AGT-code hits, not corpus items — the per-rule table below sums to it.)
 
 ## Per-rule (tuned engine)
 
-**16 of 16 single-action-family rules are exercised by the corpus.** (`AGT-MEM-001`
-sequence + `AGT-TRJ-001/002/003` taint rules are gate-exempt by design — the gate harness
-is single-action only.)
+**17 rules are exercised by the corpus** (16 single-action-family + the `AGT-MIS-004` structural
+shell rule, which fires via the shlex pass on session-bash items). (`AGT-MEM-001` sequence +
+`AGT-TRJ-001/002/003` taint rules remain gate-exempt by design — the gate harness drives
+single-action + the appended shell pass, not the trajectory/sequence passes.)
 
 | Rule        | Precision | Recall | TP code-matches |
 |-------------|-----------|--------|-----------------|
@@ -58,9 +61,10 @@ is single-action only.)
 | AGT-GOV-001 | 1.000     | 1.000  | 1  |
 | AGT-GOV-002 | 1.000     | 1.000  | 1  |
 | AGT-GOV-003 | 1.000     | 1.000  | 1  |
-| AGT-MIS-001 | 1.000     | 1.000  | 7  |
+| AGT-MIS-001 | 1.000     | 1.000  | 13 |
 | AGT-MIS-002 | 1.000     | 1.000  | 4  |
 | AGT-MIS-003 | 1.000     | 1.000  | 2  |
+| AGT-MIS-004 | 1.000     | 1.000  | 4  |
 | AGT-PI-001  | 1.000     | 1.000  | 5  |
 | AGT-PI-002  | 1.000     | 1.000  | 4  |
 | AGT-PI-003  | 1.000     | 1.000  | 3  |
@@ -205,7 +209,12 @@ Read these before quoting any number:
 - **English only by scope.** Both the synthetic gate and the independent corpora are
   English. Non-English detection is **out of scope by design** (English-only for benchmark
   comparability), not an open gap.
+- **A3 normalization is SESSION-ONLY (v2.1, M4).** Unicode/casing/homoglyph normalization runs
+  in the session value picker (`relevant_input`) only; `parse_repo` builds actions directly and is
+  NOT normalized. So a homoglyph/zero-width evasion in **repo-file content** (the dominant
+  indirect-injection surface) is un-normalized in v2.1 — a documented deferred gap (covers the
+  session channel: 30/101 gate paths, 0/56 repo-file). See ADR-5.
 - **The tuned 1.00 is partly true by construction.** The corpus and the engine's context
   rules co-evolved, so a perfect tuned score is expected on *this* corpus. The metric that
-  carries real signal is the **baseline → tuned delta** (0.6349 → 1.0000), which shows the
+  carries real signal is the **baseline → tuned delta** (0.6389 → 1.0000), which shows the
   context logic removes false positives a naive matcher produces.
