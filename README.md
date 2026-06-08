@@ -211,7 +211,7 @@ apohara-compliance/
 
 **Exploring** — demand-driven, not committed
 
-- [ ] Expanded synthetic corpus toward full per-rule coverage (`AGT-EXF-003` has no fixture yet)
+- [ ] Expanded synthetic corpus (all 16 single-action-family rules now have fixtures)
 - [ ] Additional agent-transcript formats
 - [ ] First-mover OWASP Agentic Skills (AST01–AST10) rules once the draft stabilizes
 

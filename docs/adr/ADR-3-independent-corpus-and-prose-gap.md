@@ -86,6 +86,7 @@ non-gating** harness (`crates/scanner/tests/independent_corpus.rs`).
   detection (the proper fix for the category mismatch).
 - **Spanish-language gap**: documented, not closed (English-only for benchmark
   comparability).
+  > Superseded by v2.1: English-only is a scope fact, not an open gap.
 - Unauthorized-autonomous-action and single-item destructive prose remain out of reach
   without trajectory context or precision-eroding overreach.
 - If variant enumeration ever proves unbounded for a category, open the **A3** engine
