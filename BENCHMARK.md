@@ -7,13 +7,13 @@ corpus, gated on every `cargo test`.
 > [!IMPORTANT]
 > These are **fixture metrics on a 100% synthetic, hand-crafted corpus** — they are **not**
 > a claim of real-world accuracy. The headline result is the **false-positive reduction
-> (precision 0.70 → 1.00 at unchanged recall)**, not the absolute 1.00. See
+> (precision 0.63 → 1.00 at unchanged recall)**, not the absolute 1.00. See
 > [Limitations](#limitations) — the 1.00 is partly true *by construction*.
 
 ## Headline: false positives removed without losing recall
 
 The tuning eliminates the substring matcher's false positives — **precision rises
-0.6964 → 1.0000 while recall stays 1.0000** — on the corpus below.
+0.6349 → 1.0000 while recall stays 1.0000** — on the corpus below.
 
 ## Methodology
 
@@ -29,27 +29,30 @@ to the labeled ground truth. It enforces two CI floors:
 The "substring baseline" is a deliberately naive matcher (raw substring containment) used
 as the control to isolate what the tuned engine's word-boundary + context logic buys.
 
-**Corpus:** 76 items — 41 false-positive traps + 35 true-positives.
+**Corpus:** 88 items — 52 false-positive traps + 36 true-positives.
 
 ## Overall results
 
-| Matcher (same synthetic corpus)                | Precision | Recall | TP | FP | FN |
-|------------------------------------------------|-----------|--------|----|----|----|
-| Naive substring baseline                       | 0.6964    | 1.0000 | 39 | 17 | 0  |
-| Tuned engine (regex + word-boundary + context) | 1.0000    | 1.0000 | 39 | 0  | 0  |
+| Matcher (same synthetic corpus)                | Precision | Recall | TP code-matches | FP | FN |
+|------------------------------------------------|-----------|--------|-----------------|----|----|
+| Naive substring baseline                       | 0.6349    | 1.0000 | 40              | 23 | 0  |
+| Tuned engine (regex + word-boundary + context) | 1.0000    | 1.0000 | 40              | 0  | 0  |
 
-The tuned engine removes all 17 substring false positives without dropping a single true
-positive.
+The tuned engine removes all 23 substring false positives without dropping a single true
+positive. ("TP code-matches" counts AGT-code hits, not corpus items — the per-rule table
+below sums to it.)
 
 ## Per-rule (tuned engine)
 
-**15 of 16 defined rules are exercised by the corpus.** `AGT-EXF-003` has no corpus item,
-so it is not listed below — its absence is a corpus-coverage gap, not a passing result.
+**16 of 16 single-action-family rules are exercised by the corpus.** (`AGT-MEM-001`
+sequence + `AGT-TRJ-001/002/003` taint rules are gate-exempt by design — the gate harness
+is single-action only.)
 
-| Rule        | Precision | Recall | TP |
-|-------------|-----------|--------|----|
+| Rule        | Precision | Recall | TP code-matches |
+|-------------|-----------|--------|-----------------|
 | AGT-EXF-001 | 1.000     | 1.000  | 3  |
 | AGT-EXF-002 | 1.000     | 1.000  | 3  |
+| AGT-EXF-003 | 1.000     | 1.000  | 1  |
 | AGT-FIN-001 | 1.000     | 1.000  | 1  |
 | AGT-FIN-002 | 1.000     | 1.000  | 2  |
 | AGT-GOV-001 | 1.000     | 1.000  | 1  |
@@ -160,11 +163,10 @@ Read these before quoting any number:
   fixture. v1.4 adds the *independent* AgentDojo/AgentHarm corpora above as a non-gating
   cross-check, but those measure bait-keyword surface coverage (not consequence detection)
   and AgentDojo's labeling is best-effort (see `tests/corpus/agentdojo/SOURCE.md`).
-- **English only.** Both the synthetic gate and the independent corpora are English; the
-  Spanish-language detection gap is **documented but not closed** (out of scope for v1.4).
+- **English only by scope.** Both the synthetic gate and the independent corpora are
+  English. Non-English detection is **out of scope by design** (English-only for benchmark
+  comparability), not an open gap.
 - **The tuned 1.00 is partly true by construction.** The corpus and the engine's context
   rules co-evolved, so a perfect tuned score is expected on *this* corpus. The metric that
-  carries real signal is the **baseline → tuned delta** (0.6964 → 1.0000), which shows the
+  carries real signal is the **baseline → tuned delta** (0.6349 → 1.0000), which shows the
   context logic removes false positives a naive matcher produces.
-- **Coverage gap.** One defined rule (`AGT-EXF-003`) has no corpus item; full rule coverage
-  is future work (see the README roadmap: *expanded synthetic corpus*).

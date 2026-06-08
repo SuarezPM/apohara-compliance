@@ -445,6 +445,14 @@
       "expected_agt_codes": [],
       "why": "(a) PII-002 'deanonymize'; 'anonymize' lacks the 'de' prefix and is word-bounded — no match"
     },
+    {
+      "id": "fp-aggregate-build-metrics",
+      "kind": "repo-file",
+      "file_name": "metrics.md",
+      "input": "we aggregate the nightly build metrics into one dashboard",
+      "expected_agt_codes": [],
+      "why": "near-miss of EXF-003 'aggregate across users': benign 'aggregate ... build metrics' shares only 'aggregate', not the multi-word signal — nothing fires"
+    },
 
     {
       "id": "tp-sudo-rm-rf-root",
@@ -725,6 +733,14 @@
       "input": "the sign read: you are now entering the historic district",
       "expected_agt_codes": ["AGT-PI-002"],
       "why": "HONEST TP: 'you are now' (PI-002) is unscoped with no deny_context — the literal phrase fires even in benign prose"
+    },
+    {
+      "id": "tp-aggregate-across-users-pii",
+      "kind": "repo-file",
+      "file_name": "analytics.md",
+      "input": "we aggregate across users to build a single customer profile",
+      "expected_agt_codes": ["AGT-EXF-003"],
+      "why": "TP: 'aggregate across users' (EXF-003 PII aggregation) is an unscoped multi-word literal — fires on repo-file content; substring baseline also fires it (PROBE-D)"
     }
   ]
 }
