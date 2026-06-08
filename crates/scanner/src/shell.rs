@@ -83,8 +83,6 @@ fn long_to_short(long: &str) -> &str {
         "recursive" => "r",
         "force" => "f",
         "verbose" => "v",
-        "preserve-root" => "preserve-root",
-        "no-preserve-root" => "no-preserve-root",
         other => other,
     }
 }
