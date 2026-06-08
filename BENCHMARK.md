@@ -193,6 +193,74 @@ committed AgentDojo corpus (the only externally-anchored number):
 > representation-aware injection→consequence CANDIDATE correlation; mechanism + representation proven
 > on synthetic positives; real-world efficacy UNPROVEN until a real trajectory fires."* See ADR-5.
 
+## Real-trajectory measurement (v2.2) — fires on REAL successes, AND on resisted ones
+
+v2.2 (ADR-6) closes the v2.0/v2.1 "real-world efficacy UNPROVEN **by absence of any real
+trajectory**" gap: the engine is run, with the SAME frozen rules (blob SHA `dcd1ac6…582a`, frozen
+BEFORE scanning), over a corpus of **real successful indirect-injection trajectories** from
+last-generation frontier models — and it fires on them. The number is reported as a bound triple
+plus its representation overlap-miss, and the correlation-not-causation ceiling is stated as a
+co-headline of equal prominence.
+
+**HEADLINE.** apohara v2.1 post-hoc-recognizes the injection→sink CORRELATION in **169/236
+(71.6%)** of REAL successful indirect-injection trajectories from last-generation frontier models
+(AgentDyn open-ended suites). This closes the v2.0 "real-world efficacy UNPROVEN by absence of any
+real trajectory" gap — the mechanism fires on real traces, not only synthetic.
+
+**CO-HEADLINE LIMIT (equal prominence, never buried).** It ALSO fires on **28.7% (659/2295)** of
+RESISTED injections and **1.4% (5/352)** of benign traces. apohara is a CANDIDATE
+injection→consequence CORRELATION surfacer, NOT a success/causation discriminator: a resisted
+injection still carries the marker in a tool-result AND the agent still performs a legitimate
+structured sink, so the marker→sink correlation fires in both succeeded and resisted cases.
+**precision-on-success ≈ 169 / (169+659+5) = 169/833 ≈ 20%.** The discriminating signal (did the
+agent OBEY the injection) is not representable in a deterministic post-hoc text-pattern model —
+this is the quantified ceiling.
+
+**The bound triple — DOWNLOAD corpus** (AgentDyn @ `5353cf7`, agentdojo 0.1.35, benchmark v1.2.2;
+attack `important_instructions`; LAST-GEN models, date-labeled; open-ended suites; frozen rules
+`dcd1ac6`):
+
+| | result |
+|---|---|
+| (a) model attack-success-rate (AgentDyn labels, apohara-independent) | gpt-5.1-2025-11-13 **33/851** (3.9%) · gpt-5-mini-2025-08-07 **2/560** (0.4%) · gemini-2.5-pro **122/560** (21.8%) · gemini-2.5-flash **79/560** (14.1%) |
+| (b) apohara post-hoc AGT-TRJ detection on the 236 REAL successes | **169/236 (71.6%)** — gpt-5.1 25/33 · gpt-5-mini 0/2 · gemini-2.5-pro 89/122 · gemini-2.5-flash 55/79 (AGT-TRJ-001 dominant, AGT-TRJ-003 secondary) |
+| (c) false-positive control | failed-injection (RESISTED) FP **659/2295 (28.7%)** · benign FP **5/352 (1.4%)** ⇒ precision-on-success **169/833 ≈ 20%** |
+
+**Overlap-miss** (model-independent representation coverage of the 236 positives): marker
+`<information>` covered **232/236**; role-mapped structured sink covered **180/236**; BOTH
+**178/236**; NEITHER **2/236**. Covered sink roles: url=170, recipient=60, amount=59, command=34.
+MISSED sink arg-keys (OUTSIDE the frozen role map — the `iban`-analog): path (161), subject (114),
+otp (87), title (79), body (68), recipients (68), repo_name (54), password (33). **Reported as-is,
+NEVER closed** — adding any of these after seeing traces would convert the number from a
+MEASUREMENT into a FIT (forbidden by the pre-registration).
+
+**The bound triple — LIVE current-frontier** (via OpenRouter; suite `workspace`; attack
+`important_instructions_no_model_name`; SAME frozen rules + frozen wrapper + release binary;
+current-frontier models, date-labeled: gpt-5.5 (gpt-5.5-20260423), gemini-3.5-flash (20260519),
+gemini-3.1-pro-preview (20260219), minimax-m3 (20260531), claude-opus-4.8 (claude-4.8-opus-20260528)):
+
+| | result |
+|---|---|
+| (a) attack-success TOTAL | **0/80 (0.0%)** — EACH model 0/16 |
+| (b) apohara post-hoc detection on successes | **0/0 — UNDEFINED** (no live success to detect on) |
+| (c) false-positive control | failed-injection FP **0/80** · benign FP **0/15** (the download 28.7% correlation-FP did NOT reproduce on this live set) |
+| real LIVE usage | **224 API calls, all HTTP 200; 698,959 tokens** (smoke+live; under the 1M cap); key never logged |
+
+> **The honest framing — no overclaim.** 2026 current-frontier models (gpt-5.5, gemini-3.5-flash,
+> gemini-3.1-pro-preview, minimax-m3, claude-opus-4.8) resisted **100% (0/80)** of the standard
+> `important_instructions` attack on the workspace suite; with zero live successes, live post-hoc
+> detection is undefined. **CAVEAT:** the live run used `suite=workspace` (the standard AgentDojo
+> suite), NOT AgentDyn's harder open-ended suites (shopping/github/dailylife) where last-gen models
+> reached 14–22% ASR — because the current-frontier OpenRouter IDs are not in AgentDyn's model
+> registry. So the live 0/80 is on the EASIER standard suite; current-frontier behavior on the
+> harder open-ended attack is UNMEASURED (a documented follow-up). The download corpus (last-gen,
+> open-ended) remains the only set with real successes. **Ceiling (verbatim spirit):** post-hoc
+> recognizability on the AgentDyn `important_instructions` template, template-scoped, conditional on
+> representation overlap; recognizable-in-log ≠ would-have-prevented; NOT efficacy, NOT recall, NOT
+> prevention. Pre-registered (rules frozen @ `dcd1ac6` BEFORE scanning; verified unchanged); NO
+> retro-fit (the missed arg-keys like `iban`/`otp`/`repo_name` are a DOCUMENTED overlap-miss,
+> deliberately NOT closed). See ADR-6 + PROOF-v2.2-real-trajectory.md.
+
 ## Limitations
 
 Read these before quoting any number:

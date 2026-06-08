@@ -821,6 +821,17 @@ if [ -f tests/corpus/agentharm-report.json ]; then
     bad "AgentHarm report failed the numbers/IDs-only schema (possible eval-only leak)"
   fi
 fi
+# v2.2 release-blocker: the COMMITTED real-trajectory report must be numbers/IDs-only — a trace
+# fragment or the OpenRouter key could leak even when it is not the AgentHarm canary. The strict
+# schema validator (pure stdlib, reads the committed JSON, rejects any non-number/ID leaf and any
+# `sk-or-v1-…` key shape) is the control. Mirrors validate_report_schema.py.
+if [ -f tests/corpus/v2.2-real-trajectory-report.json ]; then
+  if python3 scripts/eval/validate_v22_report.py >/dev/null 2>&1; then
+    pass "v2.2 real-trajectory report is numbers/IDs-only (strict schema validated, no key)"
+  else
+    bad "v2.2 real-trajectory report failed the numbers/IDs-only schema (possible leak)"
+  fi
+fi
 
 echo
 if [ "$fail" -eq 0 ]; then echo "ALL VERIFICATION CHECKS PASSED"; else echo "VERIFICATION FAILED"; fi
