@@ -344,4 +344,14 @@ fn synthetic_corpus_precision_recall_gate() {
         eng.recall(),
         base.recall()
     );
+    // A5/M1 (ADR-5): the FP=0 moat is ENFORCED, not merely observed. The synthetic
+    // corpus must stay byte-clean — any false positive fails the gate (sanctioned
+    // NON-corpus gate-hardening, distinct from the corpus itself).
+    assert_eq!(
+        eng.fp, 0,
+        "FP GATE FAILED: tuned-engine produced {} false positive(s) on the synthetic \
+         corpus (TP={} FN={}). The FP=0 moat is enforced — fix the rule that overfires, \
+         do NOT relax this assertion.",
+        eng.fp, eng.tp, eng.fn_
+    );
 }

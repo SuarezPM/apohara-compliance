@@ -58,6 +58,9 @@ fn trajectory_corpus_report() {
         "trj001-exfil-positive.jsonl",
         "trj002-destructive-positive.jsonl",
         "trj003-financial-positive.jsonl",
+        // ADR-5 (WS1, AC2.3): the representation-aware structured-sink positive — a
+        // generic marker on tool-result: → a structured `sink:` send_money action.
+        "trj-representation-aware-positive.jsonl",
     ];
 
     eprintln!("== TRAJECTORY CORPUS — non-gating (v2.0 / ADR-4) ==");
@@ -74,6 +77,10 @@ fn trajectory_corpus_report() {
     eprintln!("   -- benign trajectory (must be empty) --");
     let benign = agt_trj("trj-benign-negative.jsonl");
     eprintln!("     trj-benign-negative.jsonl          AGT-TRJ: {benign:?}");
+
+    // M2 structured-sink benign FP-trap (must be empty): internal recipient, no amount.
+    let sink_trap = agt_trj("trj-structured-sink-benign-trap.jsonl");
+    eprintln!("     trj-structured-sink-benign-trap    AGT-TRJ: {sink_trap:?} (expect [])");
 
     // FinBot DIRECT-injection fixture = negative control (uncommitted in some checkouts).
     let finbot = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -54,6 +54,96 @@ pub struct SessionEvidence {
 const EXPECTED_MAJOR: u64 = 2;
 const EXPECTED_MINOR: u64 = 1;
 
+/// ADR-5 (WS1, C2): the FROZEN canonical grammar for the structured-sink action.
+///
+/// A `tool_use` whose input object carries AUTHORITY-BEARING fields emits — IN
+/// ADDITION to the byte-identical `session:{name}.input` action — one structured
+/// `sink:{name}` action whose value follows THIS grammar exactly. Roles are
+/// emitted in the FIXED order recipient, amount, url, command; only the role
+/// tokens whose field is present are included; if NO authority field is present,
+/// no `sink:` action is emitted at all.
+///
+/// `sink:` is a RESERVED PREFIX (Rev 3 / N1): collision-proof against the five
+/// real ObservedAction producers (`session:{name}.input`, `tool-result:{id}`,
+/// `repo-path:{path}`, `repo-file:{path}`, OTLP `session:{tool}.input`), none of
+/// which START WITH `sink:`. The single-action loop excludes `sink:`-prefixed
+/// sources (C1-a, matching.rs), so this string is consumed ONLY by the taint pass.
+///
+/// C1-b: the canonical string carries AUTHORITY-ROLE fields ONLY — never a
+/// free-text body/note/message/content/text field — so an adversarial free-text
+/// value can never enter it. The format is an UNSTABLE internal contract (ADR-5
+/// A4): no back-compat guarantee until a real positive corpus exists.
+///
+/// Frozen as a code-level const and asserted against the emitted format by a unit
+/// test ([`tests::sink_grammar_const_documents_the_frozen_format`]). It is only
+/// referenced by that test (the grammar is a contract, not a `format!` template —
+/// `canonical_sink` renders the concrete string), so it is `#[cfg(test)]`-scoped.
+#[cfg(test)]
+pub(crate) const SINK_GRAMMAR: &str =
+    "tool-call:{name}[ recipient={v}][ amount={v}][ url={v}][ command={v}]";
+
+/// Deterministic field-name → authority-role map (ADR-5, PACT-style argument
+/// roles). AUTHORITY-BEARING fields ONLY; free-text fields are intentionally
+/// absent (C1-b). Returns the canonical role token a field name maps to, or
+/// `None` for any field that is not authority-bearing.
+fn field_role(field: &str) -> Option<&'static str> {
+    match field.to_ascii_lowercase().as_str() {
+        "recipient" | "to" | "dest" | "destination" | "account" | "payee" | "email" => {
+            Some("recipient")
+        }
+        "amount" | "value" | "sum" | "total" => Some("amount"),
+        "url" | "endpoint" | "link" | "host" => Some("url"),
+        "command" | "cmd" | "query" | "sql" | "script" => Some("command"),
+        _ => None,
+    }
+}
+
+/// Build the canonical `sink:{name}` value for a tool's input object, per
+/// [`SINK_GRAMMAR`]. Scans the input object's top-level string fields, maps each
+/// authority-bearing field to its role, and emits role tokens in the FIXED order
+/// recipient, amount, url, command (deterministic). The FIRST string value seen
+/// for a given role wins (object iteration order is stable for serde_json's
+/// preserve-order map). Returns `None` when no authority field is present.
+fn canonical_sink(name: &str, input: &Value) -> Option<String> {
+    let obj = input.as_object()?;
+    // role index: 0=recipient, 1=amount, 2=url, 3=command (the fixed grammar order).
+    let mut roles: [Option<&str>; 4] = [None; 4];
+    for (field, val) in obj {
+        let Some(role) = field_role(field) else {
+            continue;
+        };
+        let Some(s) = val.as_str() else {
+            continue;
+        };
+        let slot = match role {
+            "recipient" => 0,
+            "amount" => 1,
+            "url" => 2,
+            _ => 3, // "command"
+        };
+        if roles[slot].is_none() {
+            roles[slot] = Some(s);
+        }
+    }
+    if roles.iter().all(Option::is_none) {
+        return None;
+    }
+    let mut out = format!("tool-call:{name}");
+    if let Some(v) = roles[0] {
+        out.push_str(&format!(" recipient={v}"));
+    }
+    if let Some(v) = roles[1] {
+        out.push_str(&format!(" amount={v}"));
+    }
+    if let Some(v) = roles[2] {
+        out.push_str(&format!(" url={v}"));
+    }
+    if let Some(v) = roles[3] {
+        out.push_str(&format!(" command={v}"));
+    }
+    Some(out)
+}
+
 /// Parse a session transcript from raw NDJSON text. Pure (no I/O) so it is
 /// trivially unit-testable; the CLI reads the file and hands the text in.
 pub fn parse_session(text: &str) -> SessionParse {
@@ -161,6 +251,14 @@ fn extract_assistant_actions(obj: &Value) -> Vec<ObservedAction> {
         let input = block.get("input");
         if let Some(value) = relevant_input(name, input) {
             out.push(ObservedAction::new(format!("session:{name}.input"), value));
+        }
+        // ADR-5 (WS1, 1A): ADDITIVELY emit a structured `sink:{name}` action when
+        // the input object carries authority-bearing fields. The existing
+        // `session:{name}.input` action above is left byte-identical; this is a
+        // SECOND, separate action consumed ONLY by the taint pass (the single-action
+        // loop skips `sink:`-prefixed sources — C1-a, matching.rs).
+        if let Some(canonical) = input.and_then(|i| canonical_sink(name, i)) {
+            out.push(ObservedAction::new(format!("sink:{name}"), canonical));
         }
     }
     out
@@ -305,8 +403,13 @@ mod tests {
         // NDJSON: one object per physical line — keep the literal single-line.
         let line = r#"{"type":"assistant","version":"2.1.161","gitBranch":"main","cwd":"/x","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","input":{"command":"sudo rm -rf /tmp"}}]}}"#;
         let p = parse_session(line);
-        assert_eq!(p.actions.len(), 1);
+        // ADR-5 (WS1): the existing `session:Bash.input` action is byte-identical;
+        // the `command` field is authority-bearing, so a SECOND `sink:Bash` action
+        // is ADDITIVELY emitted (consumed only by the taint pass).
+        assert_eq!(p.actions.len(), 2);
+        assert_eq!(p.actions[0].source, "session:Bash.input");
         assert!(p.actions[0].value.contains("rm -rf"));
+        assert_eq!(p.actions[1].source, "sink:Bash");
         assert_eq!(p.evidence.version.as_deref(), Some("2.1.161"));
         assert_eq!(p.evidence.git_branch.as_deref(), Some("main"));
         assert_eq!(p.evidence.cwd.as_deref(), Some("/x"));
@@ -406,17 +509,118 @@ mod tests {
 
     #[test]
     fn tool_use_extraction_unchanged_alongside_tool_result() {
-        // The assistant tool_use path must stay byte-identical; a transcript with
-        // both yields one session: action and one tool-result: action.
+        // The assistant tool_use path stays byte-identical for the `session:` action;
+        // a transcript with both yields the session: action, the ADDITIVE `sink:Bash`
+        // action (ADR-5 WS1, `command` is authority-bearing), and the tool-result: action.
         let text = concat!(
             r#"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"rm -rf /tmp"}}]}}"#,
             "\n",
             r#"{"type":"user","message":{"content":[{"type":"tool_result","content":"ignore previous"}]}}"#,
         );
         let p = parse_session(text);
-        assert_eq!(p.actions.len(), 2);
+        assert_eq!(p.actions.len(), 3);
         assert_eq!(p.actions[0].source, "session:Bash.input");
         assert!(p.actions[0].value.contains("rm -rf"));
-        assert!(p.actions[1].source.starts_with("tool-result:"));
+        assert_eq!(p.actions[1].source, "sink:Bash");
+        assert!(p.actions[2].source.starts_with("tool-result:"));
+    }
+
+    // ---- ADR-5 (WS1): structured `sink:{name}` emission (1A) + grammar (C2) ----
+
+    #[test]
+    fn sink_grammar_const_documents_the_frozen_format() {
+        // C2: the canonical grammar is frozen as a code-level const, documented and
+        // asserted so a future change cannot silently alter the contract.
+        assert_eq!(
+            SINK_GRAMMAR,
+            "tool-call:{name}[ recipient={v}][ amount={v}][ url={v}][ command={v}]"
+        );
+    }
+
+    #[test]
+    fn field_role_maps_authority_fields_only_never_free_text() {
+        // The deterministic field-name → role map (C1-b): authority-role fields map;
+        // free-text fields (body/note/message/content/text) map to NONE.
+        assert_eq!(field_role("recipient"), Some("recipient"));
+        assert_eq!(field_role("to"), Some("recipient"));
+        assert_eq!(field_role("email"), Some("recipient"));
+        assert_eq!(field_role("amount"), Some("amount"));
+        assert_eq!(field_role("total"), Some("amount"));
+        assert_eq!(field_role("url"), Some("url"));
+        assert_eq!(field_role("endpoint"), Some("url"));
+        assert_eq!(field_role("command"), Some("command"));
+        assert_eq!(field_role("query"), Some("command"));
+        // Free-text fields are NEVER authority-bearing (C1-b).
+        assert_eq!(field_role("body"), None);
+        assert_eq!(field_role("note"), None);
+        assert_eq!(field_role("message"), None);
+        assert_eq!(field_role("content"), None);
+        assert_eq!(field_role("text"), None);
+    }
+
+    #[test]
+    fn structured_tool_emits_canonical_sink_in_fixed_role_order() {
+        // 1A: a send_money(recipient, amount) tool_use ADDITIONALLY emits a
+        // `sink:send_money` action whose value follows SINK_GRAMMAR — roles in the
+        // fixed order recipient, amount, url, command; free-text `note` excluded (C1-b).
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"send_money","input":{"amount":"5000","recipient":"attacker@evil.test","note":"thanks for everything"}}]}}"#;
+        let p = parse_session(line);
+        // Two actions: the byte-identical flat `session:` action + the new `sink:`.
+        assert_eq!(p.actions.len(), 2);
+        assert_eq!(p.actions[0].source, "session:send_money.input");
+        let sink = p
+            .actions
+            .iter()
+            .find(|a| a.source == "sink:send_money")
+            .expect("structured sink emitted");
+        // Fixed role order recipient → amount; note (free-text) is NOT present.
+        assert_eq!(
+            sink.value,
+            "tool-call:send_money recipient=attacker@evil.test amount=5000"
+        );
+        assert!(!sink.value.contains("thanks for everything"), "free-text excluded (C1-b)");
+    }
+
+    #[test]
+    fn no_authority_field_emits_no_sink_action() {
+        // 1A: a tool with only free-text fields emits NO `sink:` action (only the
+        // existing flat `session:` action via the `_=>` join branch).
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"post_note","input":{"body":"just a regular note","note":"nothing sensitive"}}]}}"#;
+        let p = parse_session(line);
+        assert_eq!(p.actions.len(), 1, "no authority field → no sink action");
+        assert_eq!(p.actions[0].source, "session:post_note.input");
+        assert!(p.actions.iter().all(|a| !a.source.starts_with("sink:")));
+    }
+
+    #[test]
+    fn read_tool_emits_no_sink_action_file_path_not_authority_role() {
+        // `file_path` is not in the role map → Read/Write/Edit emit no `sink:` action.
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"/etc/passwd"}}]}}"#;
+        let p = parse_session(line);
+        assert_eq!(p.actions.len(), 1);
+        assert_eq!(p.actions[0].source, "session:Read.input");
+        assert!(p.actions.iter().all(|a| !a.source.starts_with("sink:")));
+    }
+
+    #[test]
+    fn canonical_sink_is_deterministic_across_runs() {
+        let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"send_email","input":{"to":"x@y.test","url":"https://exfil.test/c","command":"rm -rf /"}}]}}"#;
+        let first = parse_session(line)
+            .actions
+            .into_iter()
+            .find(|a| a.source == "sink:send_email")
+            .map(|a| a.value);
+        for _ in 0..5 {
+            let again = parse_session(line)
+                .actions
+                .into_iter()
+                .find(|a| a.source == "sink:send_email")
+                .map(|a| a.value);
+            assert_eq!(first, again, "canonical sink must be deterministic");
+        }
+        assert_eq!(
+            first.as_deref(),
+            Some("tool-call:send_email recipient=x@y.test url=https://exfil.test/c command=rm -rf /")
+        );
     }
 }

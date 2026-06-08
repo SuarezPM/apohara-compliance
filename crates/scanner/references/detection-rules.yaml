@@ -410,13 +410,50 @@ rules:
     citation: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
     taint:
       taint_source:
-        signals: ["[[SYSTEM]]", "ignore previous", "ignore all previous", "disregard previous", "disregard the above", "new instructions:", "IGNORE PREVIOUS CONTEXT", "system override", "you are now"]
+        # ADR-5 (WS1, 2A) — TAXONOMY-DERIVED GENERIC injection markers, pre-registered
+        # from published SOTA, NOT fitted to AgentDojo. Each carries its source.
+        signals:
+          - "[[SYSTEM]]"
+          - "ignore previous"
+          - "ignore all previous"
+          - "disregard previous"
+          - "disregard the above"
+          - "new instructions:"
+          - "IGNORE PREVIOUS CONTEXT"
+          - "system override"
+          - "you are now"
+          # source: OWASP ASI02:2026 POISONING_INDICATORS (Adversa AI, 2026-05-18) —
+          # "new instructions"/"additional instructions" override families.
+          - "new instructions"
+          - "additional instructions"
+          # source: OWASP AITG-APP-02 Indirect Prompt Injection (AI Testing Guide) —
+          # embedded imperative-override instruction families in untrusted content.
+          - "you must now"
+          - "you should now"
+          # source: Unit42 (Palo Alto, 2026-03-03) in-the-wild IDPI — intent-spoofing
+          # "the user (actually|really) wants" family.
+          - "the user actually wants"
+          - "the user really wants"
+          # source: Microsoft Spotlighting / OWASP AITG-APP-02 — fake delimiter-tag
+          # instruction families wrapping injected instructions as pseudo-system data.
+          - "<system>"
+          - "</system>"
+          - "<important>"
+          - "<instruction>"
+          - "<instructions>"
+          - "<admin>"
+          - "<information>"
         source_kinds: ["tool-result:"]
         deny_context: ["documentation", "for example", "as an example", "illustrat", "this is a test"]
       taint_sink:
-        signals: ["curl http", "curl https", "wget http", "wget https", "requests.post", "requests.get", "send the contents", "email the contents", "post to the website", "scp "]
-        source_kinds: ["session:Bash", "session:Write", "session:Edit"]
-        require_context: ["@[A-Za-z0-9._%+-]+\\.[A-Za-z]{2,}", "https?://", "www\\."]
+        signals: ["curl http", "curl https", "wget http", "wget https", "requests.post", "requests.get", "send the contents", "email the contents", "post to the website", "scp ", "tool-call:"]
+        # ADR-5 (WS1, A6): "sink:" is the structured-sink channel; the existing
+        # real-action session channels stay too (additive). Bare "session:" is NOT
+        # used (it would also catch the .input twin).
+        source_kinds: ["session:Bash", "session:Write", "session:Edit", "sink:"]
+        # Exfil structured-sink require: an EXTERNAL recipient or url role token
+        # (Microsoft FIDES / CaMeL: a send is only sensitive to an external sink).
+        require_context: ["@[A-Za-z0-9._%+-]+\\.[A-Za-z]{2,}", "https?://", "www\\.", "recipient=[^@\\s]+@", "url=https?://"]
   - agt_code: "AGT-TRJ-002"
     name: "Indirect Injection → Destructive Action (trajectory)"
     severity: 10
@@ -429,12 +466,47 @@ rules:
     citation: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
     taint:
       taint_source:
-        signals: ["[[SYSTEM]]", "ignore previous", "ignore all previous", "disregard previous", "disregard the above", "new instructions:", "IGNORE PREVIOUS CONTEXT", "system override", "you are now"]
+        # ADR-5 (WS1, 2A) — TAXONOMY-DERIVED GENERIC injection markers (see AGT-TRJ-001
+        # for per-marker source citations; same pre-registered vocab).
+        signals:
+          - "[[SYSTEM]]"
+          - "ignore previous"
+          - "ignore all previous"
+          - "disregard previous"
+          - "disregard the above"
+          - "new instructions:"
+          - "IGNORE PREVIOUS CONTEXT"
+          - "system override"
+          - "you are now"
+          # source: OWASP ASI02:2026 POISONING_INDICATORS (Adversa AI, 2026-05-18).
+          - "new instructions"
+          - "additional instructions"
+          # source: OWASP AITG-APP-02 Indirect Prompt Injection (AI Testing Guide).
+          - "you must now"
+          - "you should now"
+          # source: Unit42 (Palo Alto, 2026-03-03) in-the-wild IDPI intent-spoofing.
+          - "the user actually wants"
+          - "the user really wants"
+          # source: Microsoft Spotlighting / OWASP AITG-APP-02 fake delimiter-tag family.
+          - "<system>"
+          - "</system>"
+          - "<important>"
+          - "<instruction>"
+          - "<instructions>"
+          - "<admin>"
+          - "<information>"
         source_kinds: ["tool-result:"]
         deny_context: ["documentation", "for example", "as an example", "illustrat", "this is a test"]
       taint_sink:
-        signals: ["rm -rf", "DROP TABLE", "DELETE FROM", "shred", "format disk", "wipe", "git push --force", "truncate table"]
-        source_kinds: ["session:Bash", "session:Write", "session:Edit"]
+        signals: ["rm -rf", "DROP TABLE", "DELETE FROM", "shred", "format disk", "wipe", "git push --force", "truncate table", "tool-call:"]
+        # ADR-5 (WS1, A6): structured "sink:" channel additive to the real-action channels.
+        source_kinds: ["session:Bash", "session:Write", "session:Edit", "sink:"]
+        # Destructive require: a destructive verb is present, EITHER raw on a real-action
+        # channel (existing Bash/Write/Edit behavior — byte-identical) OR carried in a
+        # command= role on the structured "sink:" channel (OWASP ASI02:2026 M5 parameter
+        # manipulation — `Delete(production_db)` class). The "sink:" structured-sink signal
+        # is "tool-call:", so the require ALSO demands a destructive command= for it.
+        require_context: ["rm -rf", "rm -fr", "DROP TABLE", "DELETE FROM", "\\bshred\\b", "mkfs", "format disk", "truncate table", "git push --force", "command=.*(rm -rf|rm -fr|DROP TABLE|DELETE FROM|shred|mkfs|format |truncate table|git push --force)"]
         deny_context: ["--dry-run", "dry run", "example"]
   - agt_code: "AGT-TRJ-003"
     name: "Indirect Injection → Financial Action (trajectory)"
@@ -448,11 +520,43 @@ rules:
     citation: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
     taint:
       taint_source:
-        signals: ["[[SYSTEM]]", "ignore previous", "ignore all previous", "disregard previous", "disregard the above", "new instructions:", "IGNORE PREVIOUS CONTEXT", "system override", "you are now"]
+        # ADR-5 (WS1, 2A) — TAXONOMY-DERIVED GENERIC injection markers (see AGT-TRJ-001
+        # for per-marker source citations; same pre-registered vocab).
+        signals:
+          - "[[SYSTEM]]"
+          - "ignore previous"
+          - "ignore all previous"
+          - "disregard previous"
+          - "disregard the above"
+          - "new instructions:"
+          - "IGNORE PREVIOUS CONTEXT"
+          - "system override"
+          - "you are now"
+          # source: OWASP ASI02:2026 POISONING_INDICATORS (Adversa AI, 2026-05-18).
+          - "new instructions"
+          - "additional instructions"
+          # source: OWASP AITG-APP-02 Indirect Prompt Injection (AI Testing Guide).
+          - "you must now"
+          - "you should now"
+          # source: Unit42 (Palo Alto, 2026-03-03) in-the-wild IDPI intent-spoofing.
+          - "the user actually wants"
+          - "the user really wants"
+          # source: Microsoft Spotlighting / OWASP AITG-APP-02 fake delimiter-tag family.
+          - "<system>"
+          - "</system>"
+          - "<important>"
+          - "<instruction>"
+          - "<instructions>"
+          - "<admin>"
+          - "<information>"
         source_kinds: ["tool-result:"]
         deny_context: ["documentation", "for example", "as an example", "illustrat", "this is a test"]
       taint_sink:
-        signals: ["wire transfer", "send a transaction", "ACH payment", "send as much money", "modify the recipient", "transfer $"]
-        source_kinds: ["session:Bash", "session:Write", "session:Edit"]
-        require_context: ["[A-Z]{2}[0-9]{2}[0-9]{6,}", "\\bIBAN\\b", "to the account", "\\$[0-9]", "wire", "ACH"]
+        signals: ["wire transfer", "send a transaction", "ACH payment", "send as much money", "modify the recipient", "transfer $", "tool-call:"]
+        # ADR-5 (WS1, A6): structured "sink:" channel additive to the real-action channels.
+        source_kinds: ["session:Bash", "session:Write", "session:Edit", "sink:"]
+        # Financial require: a concrete account/IBAN/amount on a real-action channel
+        # (existing behavior) OR an amount= role token on the structured "sink:" channel
+        # (PACT argument-role: a money movement is sensitive when an amount is bound).
+        require_context: ["[A-Z]{2}[0-9]{2}[0-9]{6,}", "\\bIBAN\\b", "to the account", "\\$[0-9]", "wire", "ACH", "amount=[0-9$]"]
         deny_context: ["confirmation", "receipt"]

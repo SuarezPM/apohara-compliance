@@ -295,6 +295,14 @@ pub fn match_actions_with_suppress(
     let mut matched_for_action: Vec<usize> = Vec::new();
 
     for action in actions {
+        // ADR-5 (WS1, C1-a / N1): the single-action loop NEVER scans a structured
+        // `sink:{name}` action — those are consumed only by the taint pass below.
+        // `sink:` is a reserved PREFIX (collision-proof vs `repo-path:`/`repo-file:`
+        // which carry an arbitrary `.sink`-suffixable filename); no existing source
+        // STARTS WITH `sink:`, so this is byte-identical for the existing corpus.
+        if action.source.starts_with("sink:") {
+            continue;
+        }
         matched_for_action.clear();
         for cs in &engine.signals {
             // One matched signal per rule per action is enough to flag it.
@@ -1577,5 +1585,107 @@ mod tests {
                 );
             }
         }
+    }
+
+    // ---- ADR-5 (WS1): C1/C2 `sink:` single-action FP-safety (Rev 3 prefix) ----
+
+    /// The frozen role-KEY vocabulary the canonical sink string can carry (C2).
+    const SINK_ROLE_KEYS: [&str; 4] = ["recipient=", "amount=", "url=", "command="];
+
+    #[test]
+    fn c2_no_single_action_signal_is_a_substring_of_a_role_key() {
+        // C2 / N4 disjointness guard over the LIVE compiled single-action signal set
+        // (not a hand-copied list): no embedded single-action signal may be a substring
+        // of a role-KEY token, so a role key can never itself be a signal hit.
+        let rules = load_embedded().expect("rules");
+        let engine = compile_rules(&rules);
+        assert!(!engine.signals.is_empty(), "single-action signals present");
+        for cs in &engine.signals {
+            let sig = cs.signal.to_lowercase();
+            for key in SINK_ROLE_KEYS {
+                assert!(
+                    !key.contains(&sig),
+                    "single-action signal {:?} (rule {}) is a substring of role key {:?} — \
+                     a role key could become a signal hit (C2 disjointness violation)",
+                    cs.signal,
+                    rules.detection.rules[cs.agt_index].agt_code,
+                    key
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn c1_fully_populated_sink_action_fires_zero_single_action_findings() {
+        // C1 FP-safety: a fully-populated canonical `sink:` action (all 4 roles, with
+        // benign-but-signal-shaped values: an external recipient `@…`, a `$` amount,
+        // a URL, a destructive command) fires ZERO single-action findings. With C1-a in
+        // place this holds STRUCTURALLY (the loop skips `sink:`-prefixed sources); the
+        // test is the regression guard that proves the unscoped rules cannot leak.
+        let rules = load_embedded().expect("rules");
+        let action = ObservedAction::new(
+            "sink:send_money",
+            "tool-call:send_money recipient=evil@attacker.test amount=$5000 \
+             url=https://exfil.test/c command=rm -rf /",
+        );
+        let out = match_actions(&[action], &rules);
+        // No single-action rule may fire on the structured sink action. (Taint rules
+        // are multi-action and need a prior tainted source, so they don't fire here.)
+        assert!(
+            out.is_empty(),
+            "a sink: action must fire ZERO single-action findings; got {:?}",
+            out.iter().map(|f| &f.id).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn c1a_byte_identical_passthrough_when_no_sink_action_present() {
+        // C1-a byte-identical passthrough: with NO `sink:` action present, the
+        // single-action loop output is unchanged by the new guard (the existing
+        // moat path still fires exactly as before).
+        let rules = load_embedded().expect("rules");
+        let actions = vec![
+            ObservedAction::new("session:Bash.input", "sudo rm -rf /var/cache"),
+            ObservedAction::new("repo-file:src/report.sql", "SELECT * FROM users;"),
+        ];
+        let out = match_actions(&actions, &rules);
+        assert!(out.iter().any(|f| f.id == "AGT-MIS-001"));
+        assert!(out.iter().any(|f| f.id == "AGT-EXF-001"));
+    }
+
+    #[test]
+    fn a_new_1_repo_path_dot_sink_file_still_fires_unscoped_single_action_rules() {
+        // A-NEW-1 (a) / N1 regression: a `repo-path:` action from a file named
+        // `dump.sink` STILL gets the unscoped single-action rules — the
+        // `starts_with("sink:")` guard does NOT skip it (it starts with `repo-path:`).
+        // parse_repo emits a `repo-path:{rel}` action carrying the path as the value;
+        // a signal in that value (a PII-aggregation marker) must still fire AGT-EXF-003.
+        let rules = load_embedded().expect("rules");
+        let action =
+            ObservedAction::new("repo-path:reports/dump.sink", "aggregate across users");
+        let out = match_actions(&[action], &rules);
+        assert!(
+            out.iter().any(|f| f.id == "AGT-EXF-003"),
+            "repo-path: from a .sink-named file must STILL fire unscoped rules; got {:?}",
+            out.iter().map(|f| &f.id).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_new_1_repo_file_dot_sink_content_still_fires_on_content() {
+        // A-NEW-1 (b) / N1 regression: a `repo-file:` action from a `.sink`-named file
+        // whose CONTENT contains a signal STILL fires — the guard does not skip it (it
+        // starts with `repo-file:`, not `sink:`). AGT-EXF-003 fires on the content.
+        let rules = load_embedded().expect("rules");
+        let action = ObservedAction::new(
+            "repo-file:reports/dump.sink",
+            "aggregate across users and join all tables",
+        );
+        let out = match_actions(&[action], &rules);
+        assert!(
+            out.iter().any(|f| f.id == "AGT-EXF-003"),
+            "repo-file: from a .sink-named file must STILL fire on content; got {:?}",
+            out.iter().map(|f| &f.id).collect::<Vec<_>>()
+        );
     }
 }

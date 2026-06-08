@@ -1066,11 +1066,43 @@ fn agt_trj_synthetic_positives_fire_their_rule() {
 }
 
 #[test]
+fn agt_trj_representation_aware_structured_sink_positive_fires() {
+    // ADR-5 (WS1, AC2.3): a GENERIC taxonomy-derived marker (`<INFORMATION>` /
+    // `you must now`) on a `tool-result:` source FOLLOWED BY a STRUCTURED `sink:`
+    // action (send_money with an EXTERNAL recipient + amount) fires an AGT-TRJ
+    // candidate via the new representation-aware `sink:` channel. This is the
+    // constructive existence proof (A3) — authored to fire, NOT a measurement.
+    let ids = trj_ids("trj-representation-aware-positive.jsonl");
+    assert!(
+        ids.contains(&"AGT-TRJ-001".to_string()),
+        "structured-sink exfil (external recipient) must fire AGT-TRJ-001; got {ids:?}"
+    );
+    assert!(
+        ids.contains(&"AGT-TRJ-003".to_string()),
+        "structured-sink financial (amount) must fire AGT-TRJ-003; got {ids:?}"
+    );
+}
+
+#[test]
 fn agt_trj_benign_trajectory_does_not_fire() {
     // Tainted read followed by a benign, non-sensitive action (no sink) → no fire.
     assert!(
         trj_ids("trj-benign-negative.jsonl").is_empty(),
         "a tainted read + benign action must not fire any AGT-TRJ"
+    );
+}
+
+#[test]
+fn agt_trj_structured_sink_benign_trap_fires_zero() {
+    // M2: the de-facto WS1 FP gate. A tainted read FOLLOWED BY a BENIGN structured
+    // tool-call (internal recipient `teammate`, no external `@`, no amount; the
+    // free-text `body` is excluded by C1-b) must fire ZERO AGT-TRJ — the structured
+    // sink require_context (external recipient / amount) is not satisfied. This trap
+    // lives in the integration harness, NEVER the precision_recall corpus (which
+    // stays single-action and structurally blind to `sink:`).
+    assert!(
+        trj_ids("trj-structured-sink-benign-trap.jsonl").is_empty(),
+        "a benign structured sink (internal recipient, no amount) must fire zero AGT-TRJ"
     );
 }
 
