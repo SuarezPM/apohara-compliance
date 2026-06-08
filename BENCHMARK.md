@@ -150,6 +150,45 @@ pairs + 2 benign. The bound triple (post-hoc, never "efficacy"):
 > The honest ceiling: **the mechanism is proven on synthetic positives; real-world generalization
 > is an open, measured gap** — never "detects real exploits". See ADR-4 + PROOF-v2-minimax.md.
 
+## Representation-aware taint (v2.1) — structured sinks + generic markers, post-hoc
+
+v2.1 closes the v2.0 **representation** gap (ADR-5): the parser now emits a reserved `sink:`
+action carrying a deterministic canonical role string (`recipient=`/`amount=`/`url=`/`command=`,
+authority-role fields only — `const SINK_GRAMMAR`), and the AGT-TRJ taint rules gained a
+taxonomy-derived **generic injection-marker** vocabulary (OWASP ASI02:2026 / AITG-APP-02 /
+documented IPI canary families — each marker cited in `detection-rules.yaml`) plus structured-sink
+`require_context` over the role tokens. The `sink:` channel is excluded from the single-action
+loop by a one-line `starts_with("sink:")` guard, so the new representation cannot produce a
+single-action false positive (proven by the C1 FP-safety + C2 grammar-disjointness tests).
+
+**Mechanism + representation proven on synthetic positives.** The committed
+`trj-representation-aware-positive.jsonl` (a generic marker on a `tool-result:` action →
+a later structured `sink:` action) fires AGT-TRJ-001 + AGT-TRJ-003 via the real binary; the
+`trj-structured-sink-benign-trap` and the FinBot direct-injection fixture (negative control)
+fire **zero**. The synthetic positive is a **constructive existence proof** that the engine *can*
+fire on a structured representation — it is authored to fire, so it is **not** an independent
+measurement.
+
+**Pre-registered measurement (AgentDojo committed corpus, frozen rules SHA `ac88825`, no LLM).**
+The rules were frozen to `ac88825` **before** measuring; they were NOT retro-fitted. Against the
+committed AgentDojo corpus (the only externally-anchored number):
+
+| | result |
+|---|---|
+| AgentDojo single-action recall | **23 / 35 (0.657)** — UNCHANGED from v1.4 (Δ +0.000); WS1 added no single-action prose rules |
+| generic-marker vocab coverage of the AgentDojo `important_instructions` marker class | **covered in vocabulary** (the generic `<information>`/`new instructions`/`you must now` delimiter families subsume it — derived from taxonomy, not copied) |
+| structured-sink representation exercised on AgentDojo | **0 trajectory items** — the committed AgentDojo corpus is FLAT-BAIT (single chat-action GOAL strings), so it has no `tool-result:`→`sink:` dataflow to fire on |
+
+> **Real-world efficacy is still UNPROVEN — stated plainly.** v2.1 closes the gap in the engine's
+> *vocabulary and representation* (structured sinks + generic markers now exist and fire on a
+> synthetic trajectory), but there is **no committed real trajectory corpus** to exercise it: the
+> AgentDojo corpus is flat bait (no trajectories) and v2.1 defers all live capture (A10). So the
+> structured-sink representation is measured on the **synthetic positive only**; real-trace
+> generalization remains the deferred gap. A deterministic offline matcher will **never** catch a
+> determined obfuscator (the documented ceiling). Claim ceiling: *"deterministic, post-hoc,
+> representation-aware injection→consequence CANDIDATE correlation; mechanism + representation proven
+> on synthetic positives; real-world efficacy UNPROVEN until a real trajectory fires."* See ADR-5.
+
 ## Limitations
 
 Read these before quoting any number:
