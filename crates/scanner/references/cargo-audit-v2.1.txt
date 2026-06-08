@@ -1,0 +1,22 @@
+# cargo audit — apohara-compliance v2.1 (WS2-b / AC3.3, shlex >=1.3.0)
+#
+# RUSTSEC supply-chain audit run AFTER adding shlex 1.3.0 (the S1 shell tokenizer).
+# shlex >=1.3.0 is POST-RUSTSEC-2024-0006 / CVE-2024-58266 (the <1.3.0 quoting-escape
+# vuln). Verdict: RUSTSEC-CLEAN — cargo audit exits 0, no vulnerabilities, no warnings.
+# Date: 2026-06-08 (UTC).  cargo-audit 0.22.1.
+#
+# --- raw `cargo audit` output ---
+    Fetching advisory database from `https://github.com/RustSec/advisory-db.git`
+      Loaded 1122 security advisories (from /home/thelinconx/.cargo/advisory-db)
+    Updating crates.io index
+    Scanning Cargo.lock for vulnerabilities (89 crate dependencies)
+AUDIT_EXIT=0  # 0 = RUSTSEC-clean
+#
+# --- shlex pin proof (Cargo.lock) ---
+name = "shlex"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
+#
+# --- dep-graph proof: shlex is a zero-transitive-dep leaf, NO denylisted crate ---
+├── shlex v1.3.0

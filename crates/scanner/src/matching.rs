@@ -103,6 +103,7 @@ struct RuleEngine {
     contexts: Vec<CompiledContext>,
     sequences: Vec<crate::sequence::CompiledSequence>,
     taints: Vec<crate::taint::CompiledTaint>,
+    shells: Vec<crate::shell::CompiledShell>,
 }
 
 /// Build a case-insensitive regex for one literal signal, applying `\b` ONLY at
@@ -164,6 +165,7 @@ fn compile_rules(rules: &RuleData) -> RuleEngine {
     let mut contexts = Vec::new();
     let mut sequences = Vec::new();
     let mut taints = Vec::new();
+    let mut shells = Vec::new();
     for (agt_index, rule) in rules.detection.rules.iter().enumerate() {
         // ADR-2 amend A / ADR-4: FILTER, never renumber. A sequence OR taint rule
         // contributes ZERO CompiledSignals (so the single-action loop never sees it)
@@ -174,6 +176,10 @@ fn compile_rules(rules: &RuleData) -> RuleEngine {
             sequences.push(crate::sequence::compile_sequence(agt_index, seq));
         } else if let Some(taint) = &rule.taint {
             taints.push(crate::taint::compile_taint(agt_index, &rule.agt_code, taint));
+        } else if let Some(shell) = &rule.shell {
+            // ADR-5 (S1): a shell rule has ZERO single-action signals (like taint) —
+            // it is handled by the separate `shell.rs` pass appended after taints.
+            shells.push(crate::shell::compile_shell(agt_index, &rule.agt_code, shell));
         } else {
             for signal in &rule.signals {
                 signals.push(CompiledSignal {
@@ -204,6 +210,7 @@ fn compile_rules(rules: &RuleData) -> RuleEngine {
         contexts,
         sequences,
         taints,
+        shells,
     }
 }
 
@@ -378,6 +385,20 @@ pub fn match_actions_with_suppress(
     crate::taint::match_taints(
         actions,
         &engine.taints,
+        rules,
+        suppress,
+        &mut findings,
+        &mut suppressed,
+    );
+
+    // ADR-5 (S1): the structural SHELL pass (binary + flag-SET over a tokenized
+    // session:Bash command), appended AFTER the taint pass. A no-op when no shell
+    // rule is loaded (engine.shells is empty), so the single-action + sequence +
+    // taint output stays byte-identical. Shell findings append at the tail,
+    // preserving prior finding order.
+    crate::shell::match_shell(
+        actions,
+        &engine.shells,
         rules,
         suppress,
         &mut findings,
@@ -624,8 +645,8 @@ mod tests {
         for cs in &engine.signals {
             let rule = &data.detection.rules[cs.agt_index];
             assert!(
-                rule.sequence.is_none() && rule.taint.is_none(),
-                "{} is a sequence/taint rule but contributed a single-action signal",
+                rule.sequence.is_none() && rule.taint.is_none() && rule.shell.is_none(),
+                "{} is a sequence/taint/shell rule but contributed a single-action signal",
                 rule.agt_code
             );
             assert!(
@@ -663,6 +684,21 @@ mod tests {
             engine.taints.len(),
             taint_rule_count,
             "every taint rule compiles to exactly one CompiledTaint"
+        );
+
+        // ADR-5 (S1): the shell partition count equals the number of rules with a
+        // shell block (AGT-MIS-004); the no-op match_shell keeps single-action +
+        // sequence + taint output byte-identical when none is present.
+        let shell_rule_count = data
+            .detection
+            .rules
+            .iter()
+            .filter(|r| r.shell.is_some())
+            .count();
+        assert_eq!(
+            engine.shells.len(),
+            shell_rule_count,
+            "every shell rule compiles to exactly one CompiledShell"
         );
     }
     use crate::rules::load_embedded;

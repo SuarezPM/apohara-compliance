@@ -48,6 +48,16 @@ toml = { version = "0.8.23", default-features = false, features = ["parse"] }
 # folding is a SMALL frozen table in `parse_session.rs` (Unicode confusables.txt
 # 15.1.0), NOT a crate, to keep the dep graph minimal (ADR-5 A9 option b).
 unicode-normalization = "0.1.25"
+# v2.1 WS2-b / AC3.3 (ADR-5 S1): a zero-dependency, pure-Rust shell TOKENIZER
+# (POSIX word-splitting, no runtime, no network) used by the OPT-IN `shell:` rule
+# construct to split a Bash command into argv + flags and match STRUCTURALLY
+# (binary + required-flag SET), defeating flag-reordering/spacing/bundling
+# evasions the regex families miss (`rm -r -f -v`, `rm  --force --recursive`,
+# `rm -frv`). PINNED >=1.3.0 — versions <1.3.0 carry RUSTSEC-2024-0006 /
+# CVE-2024-58266 (the quoting-escape vuln); `cargo audit` MUST stay RUSTSEC-clean
+# (committed artifact). shlex has ZERO transitive deps — verified dep-graph-safe
+# against the verify.sh denylist via `cargo tree -e no-dev`.
+shlex = "1.3"
 
 [dev-dependencies]
 # Resolution-ladder tests build temp rule dirs to assert CLI/env/embedded precedence.

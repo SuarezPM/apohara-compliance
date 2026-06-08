@@ -314,6 +314,33 @@ fn source_kinds_fires_on_session_bash_and_repo_file_but_not_elsewhere() {
     assert!(rids.contains(&"AGT-MIS-002"), "repo ids: {rids:?}");
 }
 
+// --- (g2) ADR-5 S1: structural shell rule fires on a FLAG-REORDERED rm ---------
+
+#[test]
+fn structural_shell_rule_fires_on_flag_reordered_rm_end_to_end() {
+    // ADR-5 S1 / AC3.3: a session whose only command is the FLAG-REORDERED
+    // `rm -f -r ...` (which the literal AGT-MIS-001 family member `rm -rf`/`rm -fr`
+    // misses in this exact order) fires AGT-MIS-004 structurally via the real
+    // binary — proving the shell tokenizer pass is wired into the scan path.
+    let path = fixtures()
+        .join("mis004-flag-reorder-positive.jsonl")
+        .to_string_lossy()
+        .into_owned();
+    let (stdout, stderr, ok) = run(&["scan-session", &path, "--format", "json"]);
+    assert!(ok, "scan-session should exit 0; stderr:\n{stderr}");
+    let v: Value = serde_json::from_str(&stdout).unwrap();
+    let ids: Vec<&str> = v["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|f| f["id"].as_str())
+        .collect();
+    assert!(
+        ids.contains(&"AGT-MIS-004"),
+        "flag-reordered `rm -f -r` must fire AGT-MIS-004 structurally; ids: {ids:?}"
+    );
+}
+
 // --- (h) US-F1-1 deny_context: doc-marked `act as` suppressed, real fires -----
 
 #[test]

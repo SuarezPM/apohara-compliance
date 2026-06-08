@@ -21,6 +21,7 @@ mod parse_repo;
 mod parse_session;
 mod rules;
 mod sequence;
+mod shell;
 mod suppress;
 mod taint;
 mod triage;

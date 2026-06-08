@@ -220,6 +220,45 @@ pub struct DetectionRule {
     /// field — the CLOSED 3-field context DSL (ADR-1) is untouched.
     #[serde(default)]
     pub taint: Option<TaintRule>,
+    /// Structural SHELL rule (ADR-5 S1 / AC3.3). When present, this rule is NOT a
+    /// single-action rule: `compile_rules` excludes it from the single-action
+    /// signal set (its `signals` stay empty) and the separate shell pass
+    /// (`shell.rs`) handles it. Absent (the default) ⇒ ordinary single-action
+    /// matching, byte-identically unchanged. Like `sequence`/`taint`, this is a NEW
+    /// rule-shape discriminator, NOT a 4th context-DSL field — the CLOSED 3-field
+    /// context DSL (ADR-1) is untouched. It tokenizes a `session:Bash`-prefixed
+    /// command into argv + flags and matches STRUCTURALLY (binary + required-flag
+    /// SET), defeating flag-reordering/spacing/bundling evasions the regex families
+    /// miss.
+    #[serde(default)]
+    pub shell: Option<ShellRule>,
+}
+
+/// A structural SHELL rule (ADR-5 S1 / AC3.3): tokenize a real executed Bash
+/// command (`session:Bash`-prefixed action) into argv + flags and fire when the
+/// invoked binary equals `binary` AND every flag in `all_flags` is present
+/// (order-, spacing- and bundling-invariant). This defeats the flag-REORDERING /
+/// spacing / short-bundling evasions a literal-substring family regex misses
+/// (`rm -r -f -v`, `rm  --force  --recursive`, `rm -frv`). It is a CANDIDATE
+/// (never proven destructive); `is_candidate` is forced true via `build_finding`.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Deserialize)]
+pub struct ShellRule {
+    /// The invoked binary, matched on the argv[0] BASENAME (so `/bin/rm` → `rm`).
+    pub binary: String,
+    /// The SET of flags that must ALL be present for the rule to fire, in their
+    /// NORMALIZED short-name form (e.g. `"r"`, `"f"`). A flag is satisfied by its
+    /// short form OR any known long alias for the rule's family (e.g. `--recursive`
+    /// ↔ `r`, `--force` ↔ `f`); bundled short flags (`-rf`) are expanded first.
+    pub all_flags: Vec<String>,
+    /// require_context fragments (regex, ≥1 must be present in the RAW command) —
+    /// empty = no positive-context requirement (backward-compat with the DSL).
+    #[serde(default)]
+    pub require_context: Vec<String>,
+    /// deny_context fragments (regex) — if ANY is present in the RAW command, the
+    /// candidate is SUPPRESSED (e.g. `--dry-run`, `echo `). Empty = nothing denies.
+    #[serde(default)]
+    pub deny_context: Vec<String>,
 }
 
 /// A forward-correlated taint rule (ADR-4): a `taint_source` action (untrusted-data
@@ -656,9 +695,9 @@ mod tests {
         assert_eq!(data.detection.schema_version, SCHEMA_VERSION);
         assert_eq!(
             data.detection.rules.len(),
-            23,
-            "23 AGT-* rules expected (19 single-action + AGT-MEM-001 sequence (ADR-2) + \
-             AGT-TRJ-001/002/003 taint rules (ADR-4))"
+            24,
+            "24 AGT-* rules expected (19 single-action + AGT-MIS-004 shell (ADR-5 S1) + \
+             AGT-MEM-001 sequence (ADR-2) + AGT-TRJ-001/002/003 taint rules (ADR-4))"
         );
         assert_eq!(data.asi.risks.len(), 10, "ASI01..ASI10");
         assert_eq!(data.controls.controls.len(), 49, "49 controls");

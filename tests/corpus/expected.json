@@ -468,9 +468,10 @@
       "file_name": null,
       "input": "rm -rf /var/cache/app/*",
       "expected_agt_codes": [
-        "AGT-MIS-001"
+        "AGT-MIS-001",
+        "AGT-MIS-004"
       ],
-      "why": "TP: 'rm -rf' destructive invocation"
+      "why": "TP: 'rm -rf' destructive invocation — literal (AGT-MIS-001) AND structural shell binary+flag-SET (AGT-MIS-004, ADR-5 S1)"
     },
     {
       "id": "tp-chmod-777",
@@ -820,9 +821,10 @@
       "kind": "session-bash",
       "input": "rm -fr /var/tmp/build-cache",
       "expected_agt_codes": [
-        "AGT-MIS-001"
+        "AGT-MIS-001",
+        "AGT-MIS-004"
       ],
-      "why": "F1 TP: 'rm -fr' (swapped-flag destructive variant the literal 'rm -rf' missed); substring baseline also fires it (PROBE-D)"
+      "why": "F1 TP: 'rm -fr' (swapped-flag destructive variant the literal 'rm -rf' missed); substring baseline also fires it (PROBE-D). Also AGT-MIS-004 structural (binary rm + flag-SET {r,f}, order-invariant)"
     },
     {
       "id": "fp-perform-free-task",
@@ -836,9 +838,10 @@
       "kind": "session-bash",
       "input": "rm -r -f /opt/old-release",
       "expected_agt_codes": [
-        "AGT-MIS-001"
+        "AGT-MIS-001",
+        "AGT-MIS-004"
       ],
-      "why": "F1 TP: 'rm -r -f' (separated-flag destructive variant); substring baseline also fires it (PROBE-D)"
+      "why": "F1 TP: 'rm -r -f' (separated-flag destructive variant); substring baseline also fires it (PROBE-D). Also AGT-MIS-004 structural (binary rm + flag-SET {r,f}, spacing-invariant)"
     },
     {
       "id": "fp-form-r-flag-prose",
@@ -852,9 +855,10 @@
       "kind": "session-bash",
       "input": "rm --recursive --force /srv/data",
       "expected_agt_codes": [
-        "AGT-MIS-001"
+        "AGT-MIS-001",
+        "AGT-MIS-004"
       ],
-      "why": "F1 TP: 'rm --recursive --force' (long-form destructive variant); substring baseline also fires it (PROBE-D)"
+      "why": "F1 TP: 'rm --recursive --force' (long-form destructive variant); substring baseline also fires it (PROBE-D). Also AGT-MIS-004 structural (binary rm + long-alias flag-SET --recursive/--force => {r,f})"
     },
     {
       "id": "fp-recursive-force-prose",
@@ -862,6 +866,13 @@
       "input": "echo 'the algorithm is recursive and force-feeds the work queue'",
       "expected_agt_codes": [],
       "why": "F1 trap for 'rm --recursive --force': 'recursive'/'force' in benign prose without the 'rm --' invocation"
+    },
+    {
+      "id": "fp-rm-r-only-no-force",
+      "kind": "session-bash",
+      "input": "rm -r ./build",
+      "expected_agt_codes": [],
+      "why": "S1 (AGT-MIS-004) FP-trap: a real 'rm -r' WITHOUT force — only ONE of the required {r,f} flag SET is present, so the structural shell rule must NOT fire; and the literal AGT-MIS-001 family has no 'rm -r' member, so nothing fires (benign cleanup of a build dir)"
     },
     {
       "id": "tp-dd-if-dev-zero",
