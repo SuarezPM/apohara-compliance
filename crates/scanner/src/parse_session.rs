@@ -26,6 +26,7 @@
 use std::collections::BTreeSet;
 
 use serde_json::Value;
+use unicode_normalization::UnicodeNormalization;
 
 use crate::matching::ObservedAction;
 
@@ -323,14 +324,117 @@ fn tool_result_content(content: Option<&Value>) -> Option<String> {
     }
 }
 
+/// v2.1 WS2-a / AC3.1 (ADR-5 A3) — frozen confusables.txt VERSION the homoglyph
+/// fold below is pinned to. Recorded so the fold is reproducible (A9 / M4).
+///
+/// We deliberately do NOT pull a `unicode-security`-style crate for the full
+/// skeleton/confusable algorithm (ADR-5 A9 chose option (b)): the dep-graph guard
+/// (verify.sh) and the offline build constraint are paramount, and a SMALL frozen
+/// ASCII-lookalike table is sufficient for the cheap evasions in scope. The table
+/// is a hand-pinned SUBSET of the common ASCII-confusable mappings in
+/// `confusables.txt` at this version — NOT a hand-authored morphology list
+/// (US-F0-2 hazard); every entry is a Unicode-DEFINED confusable.
+///
+/// Referenced only by the freeze-recording test (the value is documentary; the
+/// fold itself lives in [`confusable_to_ascii`]), so it is `#[cfg(test)]`-scoped.
+#[cfg(test)]
+const FROZEN_CONFUSABLES_VERSION: &str = "Unicode confusables.txt 15.1.0";
+
+/// Zero-width / invisible code points stripped before matching (ADR-5 A3).
+/// U+200B ZWSP, U+200C ZWNJ, U+200D ZWJ, U+FEFF BOM/ZWNBSP, U+00AD SOFT HYPHEN.
+const ZERO_WIDTH: &[char] = ['\u{200B}', '\u{200C}', '\u{200D}', '\u{FEFF}', '\u{00AD}'].as_slice();
+
+/// Frozen homoglyph/confusable fold table — common ASCII-lookalikes mapped to
+/// their ASCII target (Unicode confusables.txt 15.1.0; see
+/// [`FROZEN_CONFUSABLES_VERSION`]). Cyrillic, Greek and full-width Latin forms
+/// that a cheap evasion uses to dodge a literal signal. Each mapping is a
+/// Unicode-DEFINED confusable, not an invented equivalence.
+fn confusable_to_ascii(c: char) -> Option<char> {
+    let mapped = match c {
+        // --- Cyrillic lookalikes (the canonical ASCII-confusable set) ---
+        'а' => 'a', // U+0430
+        'е' => 'e', // U+0435
+        'о' => 'o', // U+043E
+        'р' => 'p', // U+0440
+        'с' => 'c', // U+0441
+        'х' => 'x', // U+0445
+        'у' => 'y', // U+0443
+        'А' => 'A',
+        'Е' => 'E',
+        'О' => 'O',
+        'Р' => 'P',
+        'С' => 'C',
+        'Х' => 'X',
+        // --- Greek lookalikes ---
+        'ο' => 'o', // U+03BF
+        'ν' => 'v', // U+03BD
+        'Α' => 'A', // U+0391
+        'Β' => 'B', // U+0392
+        'Ε' => 'E', // U+0395
+        'Ο' => 'O', // U+039F
+        'Ρ' => 'P', // U+03A1
+        'Τ' => 'T', // U+03A4
+        'Χ' => 'X', // U+03A7
+        // Full-width Latin (U+FF21–U+FF3A / U+FF41–U+FF5A) is handled by NFKC,
+        // not here — listing it would be redundant with the compatibility fold.
+        _ => return None,
+    };
+    Some(mapped)
+}
+
+/// v2.1 WS2-a / AC3.1 (ADR-5 A3) — SESSION-ONLY deterministic, offline haystack
+/// normalization applied to a picked session value BEFORE it becomes an
+/// [`ObservedAction`]. The order is: (1) zero-width strip; (2) frozen-table
+/// confusable/homoglyph fold to ASCII; (3) Unicode **NFKC** compatibility fold;
+/// (4) whitespace canonicalization (collapse runs of ASCII whitespace to a single
+/// space, trim ends). Lowercasing is NOT done here — signal matching is already
+/// case-insensitive (`compile_signal`/`RegexBuilder::case_insensitive`), so
+/// double-folding case would be redundant and could perturb `deny_context`.
+///
+/// In-scope equivalences are Unicode-DEFINED ONLY (NFKC + the frozen-confusables
+/// table). Hand-authored token-final morphology stays EMPTY (the US-F0-2
+/// `truncate`→`truncated` regression hazard); any variant needing a hand rule is
+/// DEFERRED.
+///
+/// M4 (documented, not buried): this is the SESSION channel only —
+/// `parse_repo` builds its `ObservedAction`s directly and does NOT call
+/// `relevant_input`, so repo-file content is NOT normalized in v2.1. Repo-file
+/// evasion is a documented deferred gap (covers 30/86 gate paths, 0/56
+/// repo-file); see ADR-5 Consequences + BENCHMARK.md.
+///
+/// Determinism: pure function of its input (no I/O, no allocation-order
+/// dependence) — `normalize(x)` is byte-identical across runs. The 30 plain-ASCII
+/// SESSION corpus inputs are IDENTITY under this function (asserted by the A2
+/// session-specific identity test), so the precision/recall gate is unperturbed.
+fn normalize(value: &str) -> String {
+    // (1) strip zero-width / invisible code points.
+    let stripped: String = value.chars().filter(|c| !ZERO_WIDTH.contains(c)).collect();
+    // (2) frozen confusable/homoglyph fold to ASCII.
+    let folded: String = stripped
+        .chars()
+        .map(|c| confusable_to_ascii(c).unwrap_or(c))
+        .collect();
+    // (3) Unicode NFKC compatibility-equivalence fold (full-width, ligatures, …).
+    let nfkc: String = folded.nfkc().collect();
+    // (4) whitespace canonicalization: collapse ASCII-whitespace runs, trim.
+    nfkc.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// Pick the rule-relevant input string for a given tool.
 ///
 /// `Bash`→`command`; file tools (`Read`/`Write`/`Edit`/`MultiEdit`/`NotebookEdit`)
 /// →`file_path`; for any other tool we scan all string-valued input fields so a
 /// signal in, e.g., a `WebFetch.url` or a free-form arg is not missed.
+///
+/// v2.1 WS2-a (ADR-5 A3): the picked value is passed through [`normalize`]
+/// (Unicode NFKC + zero-width strip + frozen-confusables fold + whitespace
+/// canonicalization) BEFORE it becomes an `ObservedAction`, so cheap
+/// representation evasions collapse to their ASCII-equivalent. This normalization
+/// is SESSION-ONLY (M4): `parse_repo` does not call this function, so repo-file
+/// content is NOT normalized in v2.1 (documented deferred gap).
 fn relevant_input(name: &str, input: Option<&Value>) -> Option<String> {
     let input = input?;
-    match name {
+    let picked = match name {
         "Bash" => input
             .get("command")
             .and_then(Value::as_str)
@@ -352,7 +456,8 @@ fn relevant_input(name: &str, input: Option<&Value>) -> Option<String> {
                 Some(joined.join(" "))
             }
         }
-    }
+    };
+    picked.map(|v| normalize(&v))
 }
 
 /// Opportunistically capture `version`/`gitBranch`/`cwd` from any object, and
@@ -622,5 +727,102 @@ mod tests {
             first.as_deref(),
             Some("tool-call:send_email recipient=x@y.test url=https://exfil.test/c command=rm -rf /")
         );
+    }
+
+    // ---- ADR-5 (WS2-a / AC3.1): A3 SESSION-ONLY haystack normalization ----
+
+    #[test]
+    fn normalize_strips_zero_width_code_points() {
+        // ZWSP / ZWNJ / ZWJ / BOM / soft-hyphen interleaved inside `rm -rf` must
+        // be stripped so the literal signal survives a cheap invisible-char evasion.
+        let evasive = "r\u{200B}m -\u{200D}rf /tmp\u{FEFF}";
+        assert_eq!(normalize(evasive), "rm -rf /tmp");
+    }
+
+    #[test]
+    fn normalize_folds_cyrillic_and_greek_confusables_to_ascii() {
+        // Cyrillic 'с' (U+0441) / 'о' (U+043E) lookalikes folded to ASCII c/o, so
+        // a homoglyph-disguised `chmod` is recognizable. Frozen confusables 15.1.0.
+        let cyr = "\u{0441}hmod 777 /\u{043E}pt"; // сhmod 777 /оpt
+        assert_eq!(normalize(cyr), "chmod 777 /opt");
+    }
+
+    #[test]
+    fn normalize_applies_nfkc_compatibility_fold_for_full_width() {
+        // Full-width Latin (U+FF52 'ｒ' …) NFKC-folds to ASCII `rm`.
+        let full = "\u{FF52}\u{FF4D} -rf /"; // ｒｍ -rf /
+        assert_eq!(normalize(full), "rm -rf /");
+    }
+
+    #[test]
+    fn normalize_canonicalizes_whitespace_runs() {
+        assert_eq!(normalize("  rm   -rf    /tmp  "), "rm -rf /tmp");
+    }
+
+    #[test]
+    fn normalize_is_deterministic_across_runs() {
+        // Run 5× on the same (mixed-evasion) input → byte-identical output.
+        let input = "\u{0441}url\u{200B} http://e\u{FF56}il.test"; // сurl<ZWSP> http://eｖil.test
+        let first = normalize(input);
+        for _ in 0..5 {
+            assert_eq!(normalize(input), first, "normalize must be deterministic");
+        }
+    }
+
+    #[test]
+    fn normalize_does_not_reintroduce_truncate_truncated_regression() {
+        // US-F0-2 hazard: normalization must NOT do token-final morphology — a
+        // benign "truncated" must NOT become the signal "truncate". (Identity on
+        // plain ASCII anyway, but assert it explicitly as the tripwire.)
+        assert_eq!(
+            normalize("the upload was truncated, so we retried"),
+            "the upload was truncated, so we retried"
+        );
+    }
+
+    #[test]
+    fn normalize_is_identity_on_every_session_corpus_input() {
+        // A2 SESSION-SPECIFIC identity test (the gate-protection guarantee, ADR-5
+        // AC3.1): for EVERY session-bash / session-read item in the precision/recall
+        // corpus, `normalize(input) == input`. The 30 session inputs are plain ASCII,
+        // so NFKC + zero-width-strip + confusable-fold + whitespace-canon MUST be the
+        // identity — this is what keeps the gate at precision=recall=1.0000, FP=0.
+        let corpus_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/corpus/expected.json");
+        let text = std::fs::read_to_string(&corpus_path)
+            .expect("read tests/corpus/expected.json for the A2 session-identity test");
+        let json: Value = serde_json::from_str(&text).expect("parse corpus JSON");
+        let items = json["items"].as_array().expect("corpus items array");
+        let mut session_count = 0usize;
+        for item in items {
+            let kind = item["kind"].as_str().unwrap_or("");
+            if kind != "session-bash" && kind != "session-read" {
+                continue;
+            }
+            session_count += 1;
+            let input = item["input"].as_str().expect("item input string");
+            assert_eq!(
+                normalize(input),
+                input,
+                "A2 identity violated for session item {:?}: normalization perturbs a \
+                 plain-ASCII session corpus input (would break the FP=0 gate)",
+                item["id"]
+            );
+        }
+        // The original session corpus is 30 (18 bash + 12 read); WS2-a F1 added
+        // more session-bash items, so the floor (not an exact count) is asserted —
+        // the guarantee is that EVERY session input is identity, of which there
+        // must be at least the original 30.
+        assert!(
+            session_count >= 30,
+            "A2 identity test expected at least 30 session corpus inputs, found {session_count}"
+        );
+    }
+
+    #[test]
+    fn frozen_confusables_version_is_recorded() {
+        // A9 / M4: the confusables fold is pinned to a recorded Unicode version so
+        // the fold is reproducible.
+        assert_eq!(FROZEN_CONFUSABLES_VERSION, "Unicode confusables.txt 15.1.0");
     }
 }

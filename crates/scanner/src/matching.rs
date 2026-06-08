@@ -719,6 +719,37 @@ mod tests {
     }
 
     #[test]
+    fn destructive_command_family_variants_fire_with_their_traps_clean() {
+        // v2.1 WS2-a / AC3.2 (ADR-5 F1): each new anchored destructive-command
+        // family member fires AGT-MIS-001 on its variant, AND its nearest benign
+        // FP-trap fires ZERO (the conditional-\b anchoring keeps the trap clean).
+        let rules = load_embedded().expect("rules");
+        let s = "session:Bash.input";
+        // (variant that fires, nearest benign trap that must NOT fire)
+        let cases = [
+            ("rm -fr /var/tmp/build-cache", "perform free task review and confirm the form"),
+            ("rm -r -f /opt/old-release", "the form -r flag toggles raw mode in the parser"),
+            (
+                "rm --recursive --force /srv/data",
+                "the algorithm is recursive and force-feeds the work queue",
+            ),
+            ("dd if=/dev/zero of=/dev/sda bs=1M", "add if=true to the config to enable the feature"),
+            ("mkfs.ext4 /dev/sdb1", "the mkfstab helper was renamed to fstab-builder"),
+            ("psql -c 'TRUNCATE TABLE sessions'", "the truncated table view shows ten rows"),
+        ];
+        for (variant, trap) in cases {
+            assert!(
+                fires_on(s, variant, "AGT-MIS-001", &rules),
+                "F1 destructive variant must fire AGT-MIS-001: {variant:?}"
+            );
+            assert!(
+                !fires_on(s, trap, "AGT-MIS-001", &rules),
+                "F1 nearest benign trap must NOT fire AGT-MIS-001: {trap:?}"
+            );
+        }
+    }
+
+    #[test]
     fn non_word_edge_and_spaced_signals_still_match() {
         // Conditional-`\b` positive guards: non-word-edged + spaced signals must
         // STILL fire on their target strings. NOTE (US-F1-1): the EXF rules are

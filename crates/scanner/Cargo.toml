@@ -39,6 +39,15 @@ regex = "1.12.3"
 # we only DESERIALIZE config, never write it. `toml` 0.8 declares rust-version
 # 1.66, comfortably under the workspace MSRV 1.74.
 toml = { version = "0.8.23", default-features = false, features = ["parse"] }
+# v2.1 WS2-a / AC3.1 (A3 SESSION-ONLY haystack normalization): Unicode NFKC
+# compatibility-equivalence fold so cheap representation evasions (full-width
+# forms, compatibility ligatures) collapse to their ASCII-equivalent BEFORE a
+# value becomes an ObservedAction. Pure-Rust + offline: its ONLY dependency is
+# `tinyvec` (with `tinyvec_macros`), no async/net/tokio — verified dep-graph-safe
+# against the verify.sh denylist (`cargo tree -e no-dev`). Confusable/homoglyph
+# folding is a SMALL frozen table in `parse_session.rs` (Unicode confusables.txt
+# 15.1.0), NOT a crate, to keep the dep graph minimal (ADR-5 A9 option b).
+unicode-normalization = "0.1.25"
 
 [dev-dependencies]
 # Resolution-ladder tests build temp rule dirs to assert CLI/env/embedded precedence.

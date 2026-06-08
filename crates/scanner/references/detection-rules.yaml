@@ -188,7 +188,17 @@ rules:
   - agt_code: "AGT-MIS-001"
     name: "Destructive Tool Invocation"
     severity: 10
-    signals: ["rm -rf", "DROP TABLE", "DELETE FROM", "format disk", "truncate", "shred", "wipe"]
+    # v2.1 WS2-a / AC3.2 (ADR-5 F1) — bounded ANCHORED destructive-command family.
+    # The literal `rm -rf` missed the trivial flag-order / long-form variants
+    # (`rm -fr`, `rm -r -f`, `rm --recursive --force`) and the disk-destructive
+    # (`dd if=`, `mkfs`) and SQL-DDL (`TRUNCATE TABLE`) sub-families. These are
+    # added as anchored signal members (compile_signal adds conditional \b),
+    # NON-combinatorially: one member per sub-family, not every flag permutation
+    # (order-independent flag-set matching is the deferred WS2-b/shlex job, S1).
+    # Each ships its nearest benign FP-trap in tests/corpus/expected.json
+    # (same commit). source_kinds stays session:Bash + repo-file:; the existing
+    # dry-run deny lives on the AGT-TRJ destructive sinks (taint), unchanged here.
+    signals: ["rm -rf", "rm -fr", "rm -r -f", "rm --recursive --force", "dd if=", "mkfs", "DROP TABLE", "TRUNCATE TABLE", "DELETE FROM", "format disk", "truncate", "shred", "wipe"]
     djl_rules: ["DJL-MIS-001", "DJL-MIS-002"]
     maps_to_controls: ["SP800-53:SI-7", "EU-AI-ACT:Art-9", "ISO27001:A.12.1"]
     asi_xref: ["ASI02", "ASI05"]
