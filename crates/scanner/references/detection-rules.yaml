@@ -39,11 +39,12 @@
 #                         never a certainty.
 #   citation            : "incident-taxonomy.md:LINE".
 schema_version: 1
-# 24 AGT-* rules: 19 single-action + AGT-MIS-004 shell (ADR-5 S1) + AGT-MEM-001
-# sequence (ADR-2) + AGT-TRJ-001/002/003 taint (ADR-4). (Documentation header
-# field; the authoritative count is asserted in rules.rs `load_embedded` tests.)
-total: 24
-verified_on: "2026-06-07"
+# 27 AGT-* rules: 19 single-action + AGT-MIS-004 shell (ADR-5 S1) + AGT-MEM-001
+# sequence (ADR-2) + AGT-TRJ-001/002/003 taint (ADR-4) + AGT-TRJ-001/002/003-P
+# provenance-gated taint variants (ADR-7 / v2.3). (Documentation header field; the
+# authoritative count is asserted in rules.rs `load_embedded` tests.)
+total: 27
+verified_on: "2026-06-09"
 
 rules:
   # --- Prompt Injection (AGT-PI) — incident-taxonomy.md:52-54 ---
@@ -602,3 +603,164 @@ rules:
         # (PACT argument-role: a money movement is sensitive when an amount is bound).
         require_context: ["[A-Z]{2}[0-9]{2}[0-9]{6,}", "\\bIBAN\\b", "to the account", "\\$[0-9]", "wire", "ACH", "amount=[0-9$]"]
         deny_context: ["confirmation", "receipt"]
+  # --- Trajectory Taint-Correlation with PROVENANCE GATE (v2.3, ADR-7) ---
+  # The -P variants are byte-identical mirrors of the AGT-TRJ-* rules above, with
+  # the v2.3 `require_value_from_source` field non-empty. The flag triggers the
+  # PROVENANCE CHECK in `taint::match_taints`: an authority-role value (extracted
+  # from the sink via the FROZEN `sink_role_field_map` in taint.rs) must be a
+  # substring of the latched source value (after ASCII-lowercase + 6-char length
+  # floor). This is the v2.3 causal PROXY: it eliminates the FP class where the
+  # same sink fires on a clean trajectory (legit value won't appear in the
+  # injection source), but it does NOT prove the value was *lifted* from the
+  # injection versus *coincidentally present* in the injection text. Verbatim-
+  # flow only. FROZEN at PREREG-v2.3.md (commit 5b9c9a3); no post-freeze tuning.
+  - agt_code: "AGT-TRJ-001-P"
+    name: "Indirect Injection → Data Exfiltration (trajectory, provenance-gated)"
+    severity: 9
+    signals: []
+    djl_rules: ["DJL-EXF-001", "DJL-EXF-002"]
+    maps_to_controls: ["OWASP-LLM:LLM01", "OWASP-LLM:LLM02", "GDPR:Art-32", "SP800-53:AC-4"]
+    asi_xref: ["ASI02"]
+    atlas_xref: ["AML.T0051", "AML.T0051.001"]
+    default_confidence: 0.7
+    citation: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    taint:
+      taint_source:
+        # Same TAXONOMY-DERIVED GENERIC markers as AGT-TRJ-001 (no edit; FROZEN
+        # vocab; see PREREG-v2.3.md "MUST NOT: no marker added after seeing traces").
+        signals:
+          - "[[SYSTEM]]"
+          - "ignore previous"
+          - "ignore all previous"
+          - "disregard previous"
+          - "disregard the above"
+          - "new instructions:"
+          - "IGNORE PREVIOUS CONTEXT"
+          - "system override"
+          - "you are now"
+          - "new instructions"
+          - "additional instructions"
+          - "you must now"
+          - "you should now"
+          - "the user actually wants"
+          - "the user really wants"
+          - "<system>"
+          - "</system>"
+          - "<important>"
+          - "<instruction>"
+          - "<instructions>"
+          - "<admin>"
+          - "<information>"
+        source_kinds: ["tool-result:"]
+        deny_context: ["documentation", "for example", "as an example", "illustrat", "this is a test"]
+      taint_sink:
+        # Same signals + same structured-sink + same require_context as AGT-TRJ-001
+        # (byte-identical except for the rule-level `require_value_from_source` flag
+        # below, which is the ENTIRE v2.3 delta on this rule).
+        signals: ["curl http", "curl https", "wget http", "wget https", "requests.post", "requests.get", "send the contents", "email the contents", "post to the website", "scp ", "tool-call:"]
+        source_kinds: ["session:Bash", "session:Write", "session:Edit", "sink:"]
+        require_context: ["@[A-Za-z0-9._%+-]+\\.[A-Za-z]{2,}", "https?://", "www\\.", "recipient=[^@\\s]+@", "url=https?://"]
+      # v2.3 PROVENANCE GATE: the exfil sink must carry a recipient= or url= role
+      # value that is a substring of the latched source value (after ASCII-
+      # lowercase + 6-char length floor). The recipient/url roles are the FP-
+      # killer for exfil: a legit recipient (the user's real accountant) won't
+      # appear in a generic injection payload.
+      require_value_from_source: ["recipient", "url"]
+  - agt_code: "AGT-TRJ-002-P"
+    name: "Indirect Injection → Destructive Action (trajectory, provenance-gated)"
+    severity: 10
+    signals: []
+    djl_rules: ["DJL-MIS-001", "DJL-MIS-002"]
+    maps_to_controls: ["OWASP-LLM:LLM01", "SP800-53:SI-7", "EU-AI-ACT:Art-9", "ISO27001:A.12.1"]
+    asi_xref: ["ASI02"]
+    atlas_xref: ["AML.T0051", "AML.T0051.001"]
+    default_confidence: 0.7
+    citation: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    taint:
+      taint_source:
+        signals:
+          - "[[SYSTEM]]"
+          - "ignore previous"
+          - "ignore all previous"
+          - "disregard previous"
+          - "disregard the above"
+          - "new instructions:"
+          - "IGNORE PREVIOUS CONTEXT"
+          - "system override"
+          - "you are now"
+          - "new instructions"
+          - "additional instructions"
+          - "you must now"
+          - "you should now"
+          - "the user actually wants"
+          - "the user really wants"
+          - "<system>"
+          - "</system>"
+          - "<important>"
+          - "<instruction>"
+          - "<instructions>"
+          - "<admin>"
+          - "<information>"
+        source_kinds: ["tool-result:"]
+        deny_context: ["documentation", "for example", "as an example", "illustrat", "this is a test"]
+      taint_sink:
+        signals: ["rm -rf", "DROP TABLE", "DELETE FROM", "shred", "format disk", "wipe", "git push --force", "truncate table", "tool-call:"]
+        source_kinds: ["session:Bash", "session:Write", "session:Edit", "sink:"]
+        require_context: ["rm -rf", "rm -fr", "DROP TABLE", "DELETE FROM", "\\bshred\\b", "mkfs", "format disk", "truncate table", "git push --force", "command=.*(rm -rf|rm -fr|DROP TABLE|DELETE FROM|shred|mkfs|format |truncate table|git push --force)"]
+        deny_context: ["--dry-run", "dry run", "example"]
+      # v2.3 PROVENANCE GATE: the destructive sink must carry a command= role
+      # value (e.g. `command=rm -rf /var/data`) that is a substring of the
+      # latched source value. Destructive commands are RARELY substrings of a
+      # generic injection; when they are, the candidate is a strong FP-killed
+      # signal. Honest expectation per the v2.3 plan: AGT-TRJ-002-P will fire
+      # on far fewer positives than AGT-TRJ-002 — and that IS the honest result.
+      require_value_from_source: ["command"]
+  - agt_code: "AGT-TRJ-003-P"
+    name: "Indirect Injection → Financial Action (trajectory, provenance-gated)"
+    severity: 10
+    signals: []
+    djl_rules: ["DJL-MIS-006", "DJL-POL-003"]
+    maps_to_controls: ["OWASP-LLM:LLM01", "PCI-DSS:v4-10.7", "FinCEN:31-CFR-1020", "SOC2:CC9.1"]
+    asi_xref: ["ASI02"]
+    atlas_xref: ["AML.T0051", "AML.T0051.001"]
+    default_confidence: 0.7
+    citation: "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/"
+    taint:
+      taint_source:
+        signals:
+          - "[[SYSTEM]]"
+          - "ignore previous"
+          - "ignore all previous"
+          - "disregard previous"
+          - "disregard the above"
+          - "new instructions:"
+          - "IGNORE PREVIOUS CONTEXT"
+          - "system override"
+          - "you are now"
+          - "new instructions"
+          - "additional instructions"
+          - "you must now"
+          - "you should now"
+          - "the user actually wants"
+          - "the user really wants"
+          - "<system>"
+          - "</system>"
+          - "<important>"
+          - "<instruction>"
+          - "<instructions>"
+          - "<admin>"
+          - "<information>"
+        source_kinds: ["tool-result:"]
+        deny_context: ["documentation", "for example", "as an example", "illustrat", "this is a test"]
+      taint_sink:
+        signals: ["wire transfer", "send a transaction", "ACH payment", "send as much money", "modify the recipient", "transfer $", "tool-call:"]
+        source_kinds: ["session:Bash", "session:Write", "session:Edit", "sink:"]
+        require_context: ["[A-Z]{2}[0-9]{2}[0-9]{6,}", "\\bIBAN\\b", "to the account", "\\$[0-9]", "wire", "ACH", "amount=[0-9$]"]
+        deny_context: ["confirmation", "receipt"]
+      # v2.3 PROVENANCE GATE: the financial sink must carry a recipient= or
+      # amount= role value that is a substring of the latched source value
+      # (after ASCII-lowercase + 6-char length floor). The FP-killer demo:
+      # injection quotes attacker IBAN → recipient matches; injection quotes
+      # legit IBAN only → recipient does NOT match (the rule does NOT fire on
+      # the legit-only trajectory, because the legit IBAN is not in the source).
+      require_value_from_source: ["recipient", "amount"]

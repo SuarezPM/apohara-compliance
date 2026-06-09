@@ -714,9 +714,10 @@ mod tests {
         assert_eq!(data.detection.schema_version, SCHEMA_VERSION);
         assert_eq!(
             data.detection.rules.len(),
-            24,
-            "24 AGT-* rules expected (19 single-action + AGT-MIS-004 shell (ADR-5 S1) + \
-             AGT-MEM-001 sequence (ADR-2) + AGT-TRJ-001/002/003 taint rules (ADR-4))"
+            27,
+            "27 AGT-* rules expected (19 single-action + AGT-MIS-004 shell (ADR-5 S1) + \
+             AGT-MEM-001 sequence (ADR-2) + AGT-TRJ-001/002/003 taint rules (ADR-4) + \
+             AGT-TRJ-001/002/003-P provenance-gated taint variants (ADR-7 / v2.3))"
         );
         assert_eq!(data.asi.risks.len(), 10, "ASI01..ASI10");
         assert_eq!(data.controls.controls.len(), 49, "49 controls");
