@@ -7,7 +7,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/SuarezPM/apohara-compliance/release.yml?style=for-the-badge&label=CI)](https://github.com/SuarezPM/apohara-compliance/actions)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=for-the-badge)](#-license)
 [![Rust](https://img.shields.io/badge/rust-1.74%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/version-1.1.0-purple?style=for-the-badge)](https://github.com/SuarezPM/apohara-compliance/releases)
+[![Version](https://img.shields.io/badge/version-2.2.0-purple?style=for-the-badge)](https://github.com/SuarezPM/apohara-compliance/releases)
 [![SARIF](https://img.shields.io/badge/output-SARIF%202.1.0-success?style=for-the-badge)](https://sarifweb.azurewebsites.net)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/SuarezPM/apohara-compliance/badge?style=for-the-badge)](https://scorecard.dev/viewer/?uri=github.com/SuarezPM/apohara-compliance)
 
