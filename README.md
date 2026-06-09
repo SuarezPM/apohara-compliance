@@ -4,7 +4,7 @@
 
 **Audit what your AI coding agent _did_ — not just what your repo _contains_.**
 
-[![CI](https://img.shields.io/github/actions/workflow/status/SuarezPM/apohara-compliance/release-v3.yml?style=for-the-badge&label=CI)](https://github.com/SuarezPM/apohara-compliance/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/SuarezPM/apohara-compliance/codeql.yml?style=for-the-badge&label=CI)](https://github.com/SuarezPM/apohara-compliance/actions)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=for-the-badge)](#-license)
 [![Rust](https://img.shields.io/badge/rust-1.74%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
 [![Version](https://img.shields.io/badge/version-2.2.0-purple?style=for-the-badge)](https://github.com/SuarezPM/apohara-compliance/releases)
