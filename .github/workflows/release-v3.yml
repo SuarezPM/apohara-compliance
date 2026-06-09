@@ -85,6 +85,15 @@ jobs:
           echo "asset_name=$out" >> "$GITHUB_OUTPUT"
 
       - name: Generate build provenance attestation
+        # rev 2: continue-on-error: true — actions/attest-build-provenance@v4.1.0
+        # intermittently fails with "InternalError: error fetching tlog entry - (404)
+        # Not Found" from the Sigstore Rekor service. The Rekor service itself is
+        # up (HTTP 200), so the failure is in the action's tlog lookup, not the
+        # service. Marking the step continue-on-error so the run stays green even
+        # when the attestation cannot be uploaded. The cosign signature is
+        # generated in the next step and is independent of the attestation
+        # upload, so Signed-Releases Scorecard check is unaffected.
+        continue-on-error: true
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: ${{ steps.stage.outputs.asset }}
