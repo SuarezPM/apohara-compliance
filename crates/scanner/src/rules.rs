@@ -265,11 +265,30 @@ pub struct ShellRule {
 /// channel carrying an injection marker) FOLLOWED BY a `taint_sink` action (a genuine
 /// sensitive real-action) later in the same observed-action stream. Expresses the
 /// injection→consequence PATTERN (a CANDIDATE correlation, never proven causation).
+///
+/// `require_value_from_source` (ADR-7 / v2.3, opt-in PROVENANCE GATE) — when
+/// NON-empty, the rule additionally requires that authority-role values extracted
+/// from the matched sink action (via the FROZEN `sink:` role map recorded in
+/// PREREG-v2.3) be a substring of the latched `taint_source` action's `value`,
+/// after ASCII-lowercasing + a 6-character length floor. This is a POST-HOC
+/// *proxy* for injection→consequence causation: it kills the FP class where the
+/// same sink fires on a clean trajectory (because the legit value won't appear in
+/// the injection source), but does NOT prove the value was *lifted* from the
+/// injection versus *coincidentally present* in the injection text. Verbatim-flow
+/// only; no cross-step laundering (PACT does that, apohara does not). EMPTY
+/// (the default) ⇒ ordinary AGT-TRJ behavior, byte-identically unchanged. The
+/// `#[serde(default)]` keeps existing YAML rules deserialize unchanged, so
+/// AGT-TRJ-001/002/003 byte-identical behavior is preserved without opt-in.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct TaintRule {
     pub taint_source: TaintStep,
     pub taint_sink: TaintStep,
+    /// PROVENANCE GATE (v2.3, opt-in). Role names from the FROZEN `sink:` role
+    /// map: `recipient`, `amount`, `url`, `command`. Empty = no provenance check
+    /// (v2.2 byte-identical behavior). See PREREG-v2.3.md for frozen semantics.
+    #[serde(default)]
+    pub require_value_from_source: Vec<String>,
 }
 
 /// One step of a [`TaintRule`]. Extends the sequence-step shape with per-step
@@ -695,9 +714,10 @@ mod tests {
         assert_eq!(data.detection.schema_version, SCHEMA_VERSION);
         assert_eq!(
             data.detection.rules.len(),
-            24,
-            "24 AGT-* rules expected (19 single-action + AGT-MIS-004 shell (ADR-5 S1) + \
-             AGT-MEM-001 sequence (ADR-2) + AGT-TRJ-001/002/003 taint rules (ADR-4))"
+            27,
+            "27 AGT-* rules expected (19 single-action + AGT-MIS-004 shell (ADR-5 S1) + \
+             AGT-MEM-001 sequence (ADR-2) + AGT-TRJ-001/002/003 taint rules (ADR-4) + \
+             AGT-TRJ-001/002/003-P provenance-gated taint variants (ADR-7 / v2.3))"
         );
         assert_eq!(data.asi.risks.len(), 10, "ASI01..ASI10");
         assert_eq!(data.controls.controls.len(), 49, "49 controls");

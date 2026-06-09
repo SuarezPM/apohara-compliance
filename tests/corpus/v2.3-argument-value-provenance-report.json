@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "version": "v2.3",
+  "codename": "Argument-Value Provenance (causal proxy, post-hoc, verbatim-flow)",
+  "binary": "apohara-compliance-scanner v2.3.0 (this build)",
+  "prereg": "tests/corpus/PREREG-v2.3.md",
+  "prereg_sha": "5e62e9e2c4cfdf2a2e13c0005ae384c2f4a42eeb",
+  "rules_pre_freeze_sha": "dcd1ac6e1d7ed8dce4b5b516296e8ce5a3e0582a",
+  "rules_post_freeze_sha": "e88a99b64eeffd5c04e0d8b336cd9b45c9803dd8",
+  "corpus": {
+    "name": "AgentDyn (date-labeled download corpus, last-gen models)",
+    "upstream_commit": "5353cf7615b135cace8d07c8f12dac53a16b6db3",
+    "agentdojo_version": "0.1.35",
+    "benchmark_version": "v1.2.2",
+    "models": [
+      "gpt-5.1-2025-11-13",
+      "gpt-5-mini-2025-08-07",
+      "google_gemini-2.5-pro",
+      "google_gemini-2.5-flash"
+    ],
+    "suites": [
+      "shopping",
+      "github",
+      "dailylife"
+    ],
+    "positives": 236,
+    "failed": 2295,
+    "benign": 352
+  },
+  "split": {
+    "dev": 44,
+    "test": 192,
+    "deterministic": true,
+    "salt": "v2.3-argument-value-provenance",
+    "headline_split": "test"
+  },
+  "bound_triple": {
+    "test_positives_corr": {
+      "fired": 138,
+      "of": 192,
+      "pct": 71.9
+    },
+    "test_positives_P": {
+      "fired": 100,
+      "of": 192,
+      "pct": 52.1
+    },
+    "delta_candidates": 38,
+    "failed_corr": {
+      "fired": 659,
+      "of": 2295,
+      "pct": 28.7
+    },
+    "failed_P": {
+      "fired": 319,
+      "of": 2295,
+      "pct": 13.9
+    },
+    "benign_corr": {
+      "fired": 5,
+      "of": 352,
+      "pct": 1.4
+    },
+    "benign_P": {
+      "fired": 0,
+      "of": 352,
+      "pct": 0.0
+    }
+  },
+  "headline": "v2.3 -P: 100/192 (52.1%) on TEST positives, BENIGN FP 0/352 (was 5), FAILED FP 319/2295 (was 659). Causal proxy (post-hoc substring-match, not causation).",
+  "honest_ceiling": "Necessary-but-not-sufficient post-hoc proxy. Verbatim-flow only. No cross-step laundering (PACT does that). The 52.1% headline is a measurement, not a fit."
+}
