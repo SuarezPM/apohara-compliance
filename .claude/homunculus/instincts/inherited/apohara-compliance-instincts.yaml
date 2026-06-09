@@ -1,0 +1,438 @@
+# Instincts generated from https://github.com/SuarezPM/apohara-compliance
+# Generated: 2026-06-09T22:36:00.563Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: apohara-compliance-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Commit Length
+
+## Action
+
+Write moderate-length commit messages (~69 characters)
+
+## Evidence
+
+- Average commit message length: 69 chars
+- Based on 7 commits
+
+---
+id: apohara-compliance-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: apohara-compliance-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: apohara-compliance-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: apohara-compliance-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: apohara-compliance-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: apohara-compliance-workflow-add-or-update-taint-rule-and-propagate
+trigger: "when doing add or update taint rule and propagate"
+confidence: 0.55
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Workflow Add Or Update Taint Rule And Propagate
+
+## Action
+
+Follow the add-or-update-taint-rule-and-propagate workflow:
+1. Edit crates/scanner/src/rules.rs to add or update the TaintRule struct or logic.
+2. Edit crates/scanner/src/taint.rs to propagate changes to taint processing logic.
+3. Edit crates/scanner/references/detection-rules.yaml to add new rules or update rule metadata.
+4. Update or add tests in the test suite to cover the new/updated rule logic.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~1x per month
+- Files: crates/scanner/src/rules.rs, crates/scanner/src/taint.rs, crates/scanner/references/detection-rules.yaml
+
+---
+id: apohara-compliance-workflow-frozen-eval-split-and-measurement-cycle
+trigger: "when doing frozen eval split and measurement cycle"
+confidence: 0.55
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Workflow Frozen Eval Split And Measurement Cycle
+
+## Action
+
+Follow the frozen-eval-split-and-measurement-cycle workflow:
+1. Edit or create tests/corpus/PREREG-*.md to record preregistration, schema delta, and split details.
+2. Implement or update scripts/eval/split_*_devtest.py to generate deterministic dev/test splits.
+3. Implement or update scripts/eval/scan_*_devtest.py to run the scanner and collect results.
+4. Record measurement results in tests/corpus/PROOF-*.md and tests/corpus/*-report.json.
+5. Implement or update scripts/eval/validate_*_report.py to validate the measurement report schema.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~1x per month
+- Files: tests/corpus/PREREG-*.md, scripts/eval/split_*_devtest.py, scripts/eval/scan_*_devtest.py
+
+---
+id: apohara-compliance-workflow-release-version-and-documentation-update
+trigger: "when doing release version and documentation update"
+confidence: 0.55
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Workflow Release Version And Documentation Update
+
+## Action
+
+Follow the release-version-and-documentation-update workflow:
+1. Create or update docs/adr/ADR-*.md to document the new architectural decision.
+2. Update BENCHMARK.md with new benchmark results.
+3. Update crates/scanner/references/validation-log.md with validation and quality notes.
+4. Update docs/open-questions.md with new or deferred questions.
+5. Update README.md with new version badges and lineage.
+6. Bump version in crates/scanner/Cargo.toml.
+7. Add a new entry in CHANGELOG.md for the release.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~1x per month
+- Files: docs/adr/ADR-*.md, BENCHMARK.md, crates/scanner/references/validation-log.md
+
+---
+id: apohara-compliance-instinct-file-naming
+trigger: "When creating or renaming a source file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Instinct File Naming
+
+## Action
+
+Use camelCase for file names
+
+## Evidence
+
+- Pattern in namingConventions.files: camelCase
+
+---
+id: apohara-compliance-instinct-function-naming
+trigger: "When defining a function"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Instinct Function Naming
+
+## Action
+
+Use camelCase for function names
+
+## Evidence
+
+- Pattern in namingConventions.functions: camelCase
+
+---
+id: apohara-compliance-instinct-class-naming
+trigger: "When defining a class"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Instinct Class Naming
+
+## Action
+
+Use PascalCase for class names
+
+## Evidence
+
+- Pattern in namingConventions.classes: PascalCase
+
+---
+id: apohara-compliance-instinct-constant-naming
+trigger: "When defining a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: apohara-compliance-instinct-import-style
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Instinct Import Style
+
+## Action
+
+Use relative imports
+
+## Evidence
+
+- Pattern in importStyle: relative
+
+---
+id: apohara-compliance-instinct-export-style
+trigger: "When exporting functions or classes"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle: named
+
+---
+id: apohara-compliance-instinct-test-file-pattern
+trigger: "When creating a test file"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Instinct Test File Pattern
+
+## Action
+
+Name the file with the pattern *.test.ts
+
+## Evidence
+
+- Pattern in testing.filePattern: *.test.ts
+
+---
+id: apohara-compliance-instinct-test-type
+trigger: "When writing tests"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Instinct Test Type
+
+## Action
+
+Write unit tests as the primary test type
+
+## Evidence
+
+- Pattern in testing.testTypes: unit
+- Seen in commit: AGT-TRJ-001/002/003-P rules + 9 unit/integration tests
+
+---
+id: apohara-compliance-instinct-commit-format
+trigger: "When writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Instinct Commit Format
+
+## Action
+
+Start with the release version and priority in parentheses, followed by a concise description
+
+## Evidence
+
+- Seen in commit: v2.3 (P0): PREREG-v2.3 freeze + deterministic dev/test split
+- Seen in commit: v2.3 (P1): TaintRule.require_value_from_source + match_taints provenance gate
+
+---
+id: apohara-compliance-instinct-taint-rule-workflow
+trigger: "When adding or updating a taint rule or taint logic"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Instinct Taint Rule Workflow
+
+## Action
+
+Edit crates/scanner/src/rules.rs, crates/scanner/src/taint.rs, crates/scanner/references/detection-rules.yaml, and update/add relevant tests
+
+## Evidence
+
+- Workflow: add-or-update-taint-rule-and-propagate
+- Seen in commit: v2.3 (P1): TaintRule.require_value_from_source + match_taints provenance gate
+
+---
+id: apohara-compliance-instinct-frozen-eval-split-workflow
+trigger: "When preregistering an evaluation split and measuring results for a new version"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Instinct Frozen Eval Split Workflow
+
+## Action
+
+Edit/create tests/corpus/PREREG-*.md, update scripts/eval/split_*_devtest.py, scripts/eval/scan_*_devtest.py, record results in tests/corpus/PROOF-*.md and tests/corpus/*-report.json, and validate with scripts/eval/validate_*_report.py
+
+## Evidence
+
+- Workflow: frozen-eval-split-and-measurement-cycle
+- Seen in commit: v2.3 (P0): PREREG-v2.3 freeze + deterministic dev/test split
+
+---
+id: apohara-compliance-instinct-release-docs-workflow
+trigger: "When finalizing and documenting a new release version"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: SuarezPM/apohara-compliance
+---
+
+# Apohara Compliance Instinct Release Docs Workflow
+
+## Action
+
+Update docs/adr/ADR-*.md, BENCHMARK.md, crates/scanner/references/validation-log.md, docs/open-questions.md, README.md, bump version in crates/scanner/Cargo.toml, and add an entry in CHANGELOG.md
+
+## Evidence
+
+- Workflow: release-version-and-documentation-update
+- Seen in commit: v2.3 (P3): docs — ADR-7, BENCHMARK, validation-log, open-questions, version bump
+
