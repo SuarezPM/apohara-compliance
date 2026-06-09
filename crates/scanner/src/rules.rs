@@ -265,11 +265,30 @@ pub struct ShellRule {
 /// channel carrying an injection marker) FOLLOWED BY a `taint_sink` action (a genuine
 /// sensitive real-action) later in the same observed-action stream. Expresses the
 /// injection→consequence PATTERN (a CANDIDATE correlation, never proven causation).
+///
+/// `require_value_from_source` (ADR-7 / v2.3, opt-in PROVENANCE GATE) — when
+/// NON-empty, the rule additionally requires that authority-role values extracted
+/// from the matched sink action (via the FROZEN `sink:` role map recorded in
+/// PREREG-v2.3) be a substring of the latched `taint_source` action's `value`,
+/// after ASCII-lowercasing + a 6-character length floor. This is a POST-HOC
+/// *proxy* for injection→consequence causation: it kills the FP class where the
+/// same sink fires on a clean trajectory (because the legit value won't appear in
+/// the injection source), but does NOT prove the value was *lifted* from the
+/// injection versus *coincidentally present* in the injection text. Verbatim-flow
+/// only; no cross-step laundering (PACT does that, apohara does not). EMPTY
+/// (the default) ⇒ ordinary AGT-TRJ behavior, byte-identically unchanged. The
+/// `#[serde(default)]` keeps existing YAML rules deserialize unchanged, so
+/// AGT-TRJ-001/002/003 byte-identical behavior is preserved without opt-in.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct TaintRule {
     pub taint_source: TaintStep,
     pub taint_sink: TaintStep,
+    /// PROVENANCE GATE (v2.3, opt-in). Role names from the FROZEN `sink:` role
+    /// map: `recipient`, `amount`, `url`, `command`. Empty = no provenance check
+    /// (v2.2 byte-identical behavior). See PREREG-v2.3.md for frozen semantics.
+    #[serde(default)]
+    pub require_value_from_source: Vec<String>,
 }
 
 /// One step of a [`TaintRule`]. Extends the sequence-step shape with per-step

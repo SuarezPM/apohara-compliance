@@ -39,10 +39,15 @@ pub(crate) struct CompiledTaintStep {
 
 /// A compiled [`TaintRule`] (ADR-4). `agt_index` is the positional index into the
 /// FULL `rules.detection.rules[]` (preserved by `compile_rules`, like ADR-2).
+/// `require_value_from_source` is the v2.3 PROVENANCE GATE role-set (empty =
+/// v2.2 byte-identical behavior; non-empty = the sink must carry an authority-role
+/// value that is a substring of the latched source value, after ASCII-lowercasing
+/// and a 6-character length floor; see PREREG-v2.3.md).
 pub(crate) struct CompiledTaint {
     agt_index: usize,
     taint_source: CompiledTaintStep,
     taint_sink: CompiledTaintStep,
+    require_value_from_source: Vec<String>,
 }
 
 fn compile_ctx(agt_code: &str, kind: &str, fragments: &[String]) -> Vec<Regex> {
@@ -80,7 +85,105 @@ pub(crate) fn compile_taint(agt_index: usize, agt_code: &str, rule: &TaintRule) 
         agt_index,
         taint_source: compile_taint_step(agt_code, &rule.taint_source),
         taint_sink: compile_taint_step(agt_code, &rule.taint_sink),
+        require_value_from_source: rule.require_value_from_source.clone(),
     }
+}
+
+// FROZEN `sink:` role map (ADR-7 / v2.3, PREREG-v2.3.md). Each role maps to a
+// list of field names that — when present as `key = value` tokens in the sink
+// canonical string — contribute the value to that role's candidate set. Roles
+// outside this map are unknown (the YAML cannot enable a new role without
+// editing this constant, which is a code change that fails the no-retro-fit
+// guard). v2.3 ONLY ships `recipient`, `amount`, `url`, `command`; the v2.2
+// `sink:` grammar field-name map (recorded in PREREG-v2.2) is byte-identical
+// at the field-name level; v2.3 just USES it for value extraction instead of
+// only for role tagging.
+const SINK_ROLE_FIELD_MAP: &[(&str, &[&str])] = &[
+    (
+        "recipient",
+        &[
+            "recipient", "to", "dest", "destination", "account", "payee", "email",
+        ],
+    ),
+    ("amount", &["amount", "value", "sum", "total"]),
+    ("url", &["url", "link", "href", "uri"]),
+    (
+        "command",
+        &["command", "cmd", "shell", "exec", "run"],
+    ),
+];
+
+/// Length floor for the provenance check (FROZEN, PREREG-v2.3.md). Values
+/// shorter than this are excluded from the candidate set (anti-coincidence
+/// guard — too-short tokens like "ok", "go", "the" would match almost any
+/// source value).
+const VALUE_LENGTH_FLOOR: usize = 6;
+
+/// Extract authority-role values for the GIVEN role names from a canonical
+/// sink string. Each `key = value` token (delimited by whitespace or
+/// punctuation; `=`, `:`) is matched: if the key (lowercased, ASCII) is in the
+/// role's field list, the value is added to the role's candidate set. Returns
+/// a `Vec<(role, ascii_lowercased_value)>` filtered by the length floor.
+fn extract_role_values(sink: &str, wanted_roles: &[String]) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    if wanted_roles.is_empty() {
+        return out;
+    }
+    // Tokenize on whitespace, then split each token on `=` or `:`.
+    for token in sink.split_whitespace() {
+        for sep in ['=', ':'] {
+            if let Some((k, v)) = token.split_once(sep) {
+                let key = k.to_ascii_lowercase();
+                let val = v.trim();
+                if val.is_empty() {
+                    continue;
+                }
+                for (role, fields) in SINK_ROLE_FIELD_MAP {
+                    if !wanted_roles.iter().any(|r| r == role) {
+                        continue;
+                    }
+                    if fields.iter().any(|f| *f == key) {
+                        if val.chars().count() >= VALUE_LENGTH_FLOOR {
+                            out.push(((*role).to_string(), val.to_ascii_lowercase()));
+                        }
+                    }
+                }
+                break; // only consider the first separator found in the token
+            }
+        }
+    }
+    out
+}
+
+/// Run the v2.3 PROVENANCE CHECK (PREREG-v2.3.md frozen semantics): at least
+/// one extracted (role, value) pair must satisfy `value ⊆ source_value`
+/// (substring, ASCII case-sensitive after both sides have been lowercased).
+/// Returns `true` if at least one role finds a substring match (the candidate
+/// fires) or `false` (the candidate is suppressed). If the wanted-roles list
+/// is empty OR no candidates can be extracted from the sink, returns `true`
+/// (no provenance check applied) — this is the byte-identical-passthrough
+/// path for the empty-flag case.
+fn provenance_check(
+    sink_value: &str,
+    source_value: &str,
+    wanted_roles: &[String],
+) -> bool {
+    if wanted_roles.is_empty() {
+        return true;
+    }
+    let candidates = extract_role_values(sink_value, wanted_roles);
+    if candidates.is_empty() {
+        // No authority-role value present in the sink; the v2.3 rule says
+        // suppress (the FP-killer is "the sink did carry a real action, but
+        // its value-free state means the candidate was matched on a generic
+        // signal rather than a value-bearing command"). Honoring the spec
+        // exactly: if no role yields a candidate, the provenance gate fails.
+        return false;
+    }
+    let source_lc = source_value.to_ascii_lowercase();
+    candidates
+        .iter()
+        .any(|(_, val)| source_lc.contains(val.as_str()))
 }
 
 /// Does this step match the action? A step matches when: the action `source`
@@ -121,6 +224,15 @@ fn taint_step_match<'a>(step: &'a CompiledTaintStep, action: &ObservedAction) ->
 /// at a LATER index, fire exactly ONE candidate for the rule (first-sink-fires +
 /// break — the documented laundering-order limitation, acceptable for a candidate
 /// detector). A refusal trajectory (ends in chat, no real-action sink) fires nothing.
+///
+/// v2.3 PROVENANCE GATE (ADR-7, opt-in): when the rule's
+/// `require_value_from_source` is non-empty, the candidate is additionally
+/// gated on the v2.3 PROVENANCE CHECK (substring of source value, see
+/// `provenance_check` and PREREG-v2.3.md). When the flag is empty (the v2.2
+/// default), the function is BYTE-IDENTICAL to the v2.2 path: the same
+/// `taint_step_match` calls, in the same order, with the same return values;
+/// the only bookkeeping change is the latched value carrying a tuple `(sig,
+/// value)` instead of just `sig` (the sig is unchanged).
 pub(crate) fn match_taints(
     actions: &[ObservedAction],
     taints: &[CompiledTaint],
@@ -130,17 +242,40 @@ pub(crate) fn match_taints(
     suppressed: &mut Vec<SuppressedFinding>,
 ) {
     for taint in taints {
-        let mut tainted: Option<&str> = None;
+        // Latch state: (source-signal, source-action-value) once the first
+        // taint_source matches. Empty rule flag = value slot is unused; the
+        // match path is byte-identical to v2.2.
+        let mut tainted: Option<(&str, &str)> = None;
         for action in actions {
             if tainted.is_none() {
                 if let Some(sig) = taint_step_match(&taint.taint_source, action) {
-                    tainted = Some(sig);
+                    tainted = Some((sig, action.value.as_str()));
                     // The sink must come at a LATER index for THIS rule.
                     continue;
                 }
             }
-            if let Some(source_sig) = tainted {
+            if let Some((source_sig, source_value)) = tainted {
                 if let Some(sink_sig) = taint_step_match(&taint.taint_sink, action) {
+                    // v2.3 PROVENANCE GATE: when the rule opts in, suppress
+                    // the candidate unless at least one authority-role value
+                    // extracted from the sink is a substring of the latched
+                    // source value. Empty flag = pass-through (byte-identical).
+                    if !provenance_check(
+                        &action.value,
+                        source_value,
+                        &taint.require_value_from_source,
+                    ) {
+                        // Provenance gate failed: candidate is suppressed
+                        // (NOT counted as a finding, NOT counted as a
+                        // suppress-list suppression — it's the v2.3
+                        // post-hoc-filter pass). Logged for the audit trail.
+                        let rule = &rules.detection.rules[taint.agt_index];
+                        eprintln!(
+                            "apohara-compliance-scanner: provenance-gate: {} (no value-flow)",
+                            rule.agt_code
+                        );
+                        break;
+                    }
                     let rule = &rules.detection.rules[taint.agt_index];
                     let signal = format!("{source_sig} ⇒ {sink_sig}");
                     let finding = build_finding(rule, &signal, rules);
@@ -191,6 +326,8 @@ mod tests {
                 require_context: vec!["@[A-Za-z0-9._%+-]+\\.[A-Za-z]{2,}".into()],
                 deny_context: vec![],
             },
+            // v2.3: empty = v2.2 byte-identical behavior (no provenance gate).
+            require_value_from_source: vec![],
         }
     }
 
@@ -333,6 +470,8 @@ mod tests {
                 require_context: vec!["recipient=[^@\\s]+@".into()],
                 deny_context: vec![],
             },
+            // v2.3: empty = v2.2 byte-identical behavior.
+            require_value_from_source: vec![],
         }
     }
 
