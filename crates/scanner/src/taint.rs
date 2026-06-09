@@ -94,10 +94,12 @@ pub(crate) fn compile_taint(agt_index: usize, agt_code: &str, rule: &TaintRule) 
 // canonical string — contribute the value to that role's candidate set. Roles
 // outside this map are unknown (the YAML cannot enable a new role without
 // editing this constant, which is a code change that fails the no-retro-fit
-// guard). v2.3 ONLY ships `recipient`, `amount`, `url`, `command`; the v2.2
-// `sink:` grammar field-name map (recorded in PREREG-v2.2) is byte-identical
-// at the field-name level; v2.3 just USES it for value extraction instead of
-// only for role tagging.
+// guard). v2.3 ships `recipient`, `amount`, `url`, `command`; the v2.2
+// `sink:` grammar field-name map (recorded in PREREG-v2.2 and used by
+// `scripts/eval/scan_v22_buckets.py::FIELD_ROLE` for measurement introspection)
+// is byte-identical at the field-name level; v2.3 just USES it for value
+// extraction instead of only for role tagging. Adding a new field here is a
+// code change that fails the no-retro-fit guard.
 const SINK_ROLE_FIELD_MAP: &[(&str, &[&str])] = &[
     (
         "recipient",
@@ -106,10 +108,10 @@ const SINK_ROLE_FIELD_MAP: &[(&str, &[&str])] = &[
         ],
     ),
     ("amount", &["amount", "value", "sum", "total"]),
-    ("url", &["url", "link", "href", "uri"]),
+    ("url", &["url", "endpoint", "link", "host", "href", "uri"]),
     (
         "command",
-        &["command", "cmd", "shell", "exec", "run"],
+        &["command", "cmd", "shell", "exec", "run", "query", "sql", "script"],
     ),
 ];
 
