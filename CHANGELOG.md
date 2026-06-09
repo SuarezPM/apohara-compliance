@@ -5,6 +5,236 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-06-09
+
+"Real-Trajectory Efficacy" (ADR-6). Additive — no scanner change; the engine is run
+with the **same frozen rules** (blob SHA `dcd1ac6`, frozen BEFORE scanning) over a
+corpus of real successful indirect-injection trajectories from last-generation
+frontier models, and a live current-frontier cross-check. The number is reported
+as a **bound triple** + its representation overlap-miss, and the
+correlation-not-causation ceiling is stated as a co-headline of equal prominence.
+
+### Added
+
+- Eval harness (`scripts/eval/wrap_agentdojo_trace.py` + friends) that
+  transcribes AgentDyn traces via an apohara-agnostic wrapper to the REAL
+  release binary — never the scanner crate, never the rules, never the wrapper
+  (the measurement is BY construction, not a fit).
+- Download bound triple on AgentDyn (`5353cf7`, agentdojo 0.1.35, benchmark
+  v1.2.2; attack `important_instructions`; **last-gen** models, date-labeled;
+  open-ended suites): post-hoc AGT-TRJ detection on 236 real successes
+  **169 / 236 (71.6 %)**; failed-injection (RESISTED) FP **659 / 2295
+  (28.7 %)**; benign FP **5 / 352 (1.4 %)** ⇒ precision-on-success
+  **169/833 ≈ 20 %**.
+- Live current-frontier cross-check via OpenRouter (suite `workspace`, attack
+  `important_instructions_no_model_name`; same frozen rules + wrapper + binary;
+  current-frontier models, date-labeled: gpt-5.5, gemini-3.5-flash,
+  gemini-3.1-pro-preview, MiniMax-M3, claude-opus-4.8): attack-success TOTAL
+  **0 / 80 (0.0 %)** — each model 0 / 16; live post-hoc detection **0 / 0 —
+  UNDEFINED**; failed-injection FP **0 / 80**; benign FP **0 / 15**. Real
+  usage: **224 API calls, all HTTP 200; 698,959 tokens** (under the 1 M cap);
+  key never logged.
+- Overlap-miss (model-independent, 236 positives): marker `<information>`
+  covered 232/236; role-mapped structured sink covered 180/236; BOTH
+  178/236; NEITHER 2/236. Covered sink roles: `url=170, recipient=60,
+  amount=59, command=34`. MISSED arg-keys (OUTSIDE the frozen role map — the
+  `iban`-analog): `path (161), subject (114), otp (87), title (79), body (68),
+  recipients (68), repo_name (54), password (33)`. **Reported as-is, NEVER
+  closed** — a retro-fit converts the measurement into a fit.
+- Reports (strict-schema-validated, numbers/IDs-only — no example text):
+  - `tests/corpus/v2.2-real-trajectory-report.json` (the bound triple +
+    live usage, validated by `scripts/eval/validate_v22_report.py` and wired
+    into `scripts/verify.sh`).
+- PREREG + PROOF (committed):
+  - `tests/corpus/PREREG-v2.2-real-trajectory.md` (rules frozen at
+    `dcd1ac6e1d7ed8dce4b5b516296e8ce5a3e0582a` **BEFORE** any scan; verified
+    unchanged post-scan).
+  - `tests/corpus/PROOF-v2.2-real-trajectory.md`.
+- CAVEAT (stated): the live run used `suite=workspace` (the standard
+  AgentDojo suite), NOT AgentDyn's harder open-ended suites (shopping /
+  github / dailylife) where last-gen models reached 14–22 % ASR — because
+  the current-frontier OpenRouter IDs are not in AgentDyn's model registry.
+  So the live 0/80 is on the **easier standard suite**; current-frontier
+  behaviour on the harder open-ended attack is **UNMEASURED** (a documented
+  follow-up).
+
+### Notes
+
+- Honesty invariants unchanged: every finding is `is_candidate: true`, every
+  formatter line is `CANDIDATE — ` prefixed, SARIF `level` is never `error`.
+- The single-action engine is byte-identical to v2.1; the additive trajectory
+  pass is unchanged. The synthetic precision/recall gate still
+  **1.0000 / 1.0000 / FP = 0**; the AgentDojo prose-rule recall still
+  **23 / 35 (0.657)**; the AGT-TRJ rules fire on the synthetic positive and
+  zero on the FinBot negative control.
+
+### Claim ceiling (verbatim, ADR-6)
+
+*"deterministic, post-hoc, representation-aware injection → consequence
+CANDIDATE CORRELATION surfacer; mechanism + representation proven on
+synthetic positives; post-hoc recognition MEASURED on real successful
+trajectories (169/236, last-gen open-ended) with an explicit model-independent
+overlap-miss; ALSO fires on resisted (28.7 %) + benign (1.4 %) — a correlation
+surfacer, NOT a success / causation discriminator (precision-on-success ≈
+20 %); NOT efficacy / recall / prevention; recognisable-in-log ≠
+would-have-prevented."*
+
+## [2.1.0] - 2026-06-09
+
+"Representation-Aware Taint + Evasion Robustness + Cleanups" (ADR-5). Additive
+— the v2.0 trajectory pass is unchanged; representation + vocabulary + a
+structural shell pass are added; the single-action engine is byte-identical to
+v1.4 (AgentDojo recall 23 / 35 UNCHANGED). The gap closed: the v2.0
+representation/vocab gap (AgentDojo's structured tool-call sinks did not
+overlap the v2.0 `taint_source` / `taint_sink` vocab).
+
+### Added
+
+- Representation-aware taint (ADR-5): the parser now emits a reserved
+  `sink:` action carrying a deterministic canonical role string
+  (`recipient=` / `amount=` / `url=` / `command=`, with `const SINK_GRAMMAR`
+  enforcing an authority boundary). The `sink:` channel is excluded from the
+  single-action loop by a one-line `starts_with("sink:")` guard, so the new
+  representation **cannot** produce a single-action false positive (proven by
+  the C1 FP-safety + C2 grammar-disjointness tests).
+- Taxonomy-derived **generic injection-marker** vocabulary for AGT-TRJ (OWASP
+  ASI02:2026 / AITG-APP-02 / documented IPI canary families — each marker
+  cited in `detection-rules.yaml`).
+- Structural `shlex` shell pass → AGT-MIS-004 catches flag-reordered
+  destructive commands a substring scan cannot (e.g. `rm -r -f` / `rm -fr` /
+  quoted-arg variants); folded into `AGT-MIS-004`.
+- A3 session-only normalization (Unicode / casing / homoglyph) in the session
+  value picker (`relevant_input`). Documented deferred gap: `parse_repo`
+  builds actions directly and is NOT normalized — covers the session channel
+  (30/101 gate paths, 0/56 repo-file). Repo-file normalization is a documented
+  follow-up (ADR-5 M4).
+- Synthetic positive (`trj-representation-aware-positive.jsonl`) fires
+  AGT-TRJ-001 + AGT-TRJ-003 via the real binary; the
+  `trj-structured-sink-benign-trap` and the FinBot direct-injection fixture
+  (negative control) fire **zero**.
+- Pre-registration: frozen rules SHA `ac88825` (verified unchanged
+  post-scan). Repo-file normalization deferred to a future PR.
+
+### Notes
+
+- Honesty invariants unchanged.
+- The synthetic positive is a **constructive existence proof** that the engine
+  *can* fire on a structured representation — it is authored to fire, so it
+  is **not** an independent measurement. Real-trace generalisation is
+  **UNPROVEN at v2.1** (stated plainly in ADR-5).
+- "Real-world efficacy is still UNPROVEN — stated plainly. v2.1 closes the
+  gap in the engine's *vocabulary and representation* (structured sinks +
+  generic markers now exist and fire on a synthetic trajectory), but there
+  is **no committed real trajectory corpus** to exercise it: the AgentDojo
+  corpus is flat bait (no trajectories) and v2.1 defers all live capture
+  (A10). So the structured-sink representation is measured on the **synthetic
+  positive only**; real-trace generalisation remains the deferred gap. A
+  deterministic offline matcher will **never** catch a determined obfuscator
+  (the documented ceiling)."
+
+## [2.0.0] - 2026-06-09
+
+"Trajectory Taint-Correlation Detection" (ADR-4). Additive — a new
+deterministic taint engine runs AFTER the single-action loop AND after the
+ADR-2 `sequence` pass. It expresses the injection → consequence dataflow the
+single-action engine cannot: a TAINTED source (an action on the untrusted-data
+`tool-result:` channel carrying injection markers, AND **not** a
+doc/comment quote) FOLLOWED BY a genuine sensitive real-action sink
+(exfil / destructive / financial) later in the same action stream (forward-
+correlated: the taint persists across intervening steps).
+
+### Added
+
+- New module `crates/scanner/src/taint.rs` — the deterministic
+  taint-correlation engine. Self-contained by design (ADR-4 OQ1): copies
+  the small `CompiledStep` / `step_match` shape from `sequence.rs` rather
+  than sharing a helper, to keep zero blast-radius on the CRITICAL
+  `matching.rs` and the live `sequence.rs` AGT-MEM-001 path.
+- New rules (rule count 17 → 20): `AGT-TRJ-001` (injection + sensitive sink,
+  base), `AGT-TRJ-002` (exfil sink family), `AGT-TRJ-003` (destructive sink
+  family).
+- A10 live capture (pre-registration + smoke): the committed AgentDojo
+  corpus + a bounded live capture on AgentDojo banking-suite with
+  **MiniMax-M3** (OpenRouter adapter), attack `important_instructions`,
+  10 attacked pairs + 2 benign. **Real-world result: 0 / 10 attack-success
+  on MiniMax** (the model refused every indirect injection); 28 API calls,
+  65,550 tokens; real-usage proof.
+- Synthetic positive (`trj-agentdojo-async-injection.jsonl` + friends) fires
+  AGT-TRJ-001 / 002 / 003 via the real binary; the FinBot direct-injection
+  fixture (negative control) and benign-trajectory traps fire **zero**.
+- Pre-registration: `tests/corpus/PREREG-v2-agentdojo.md` (frozen before
+  scanning). Proof: `tests/corpus/PROOF-v2-minimax.md` (the real-world
+  0 / 10 + 65,550 tokens).
+- Added: 8 commits `2610a0b..9e1a78a` on `v2.0-trajectory-taint` (Ralph
+  v0 → F4, AMENDMENT-A feasibility F5A, deslop).
+
+### Notes
+
+- Honesty invariants unchanged: every finding is `is_candidate: true`, every
+  formatter line is `CANDIDATE — ` prefixed, SARIF `level` is never `error`.
+- No new runtime dependency; the detection core stays deterministic and
+  offline; the synthetic precision/recall gate still
+  **1.0000 / 1.0000 / FP = 0**.
+- **Real-world efficacy is UNPROVEN at v2.0** (stated plainly in ADR-4 and
+  the PROOF). Two measured reasons: (1) MiniMax-M3 resisted all 10
+  injections, so no real positive trace exists; (2) a verified
+  **representation/vocab gap** — AgentDojo's `<INFORMATION>…` marker and
+  structured tool-call sinks (`send_money(…)`) do not overlap apohara's
+  text-pattern `taint_source` / `taint_sink` vocabulary, so even a
+  successful trace would very likely not fire. apohara is a **post-hoc**
+  transcript scanner (recognisable-in-log ≠ would-have-prevented), and its
+  rules are vocab-scoped to shell/coding agents. Per the pre-registration
+  the rules were NOT retro-fitted to AgentDojo.
+
+## [1.4.0] - 2026-06-09
+
+"Independent Corpus + Prose-Gap Closure" (HYBRID 2+3; ADR-3). Closes the
+"prose gap" — the corpus / rules co-evolved on the v1.0 synthetic gate; v1.4
+adds two **independent**, externally-authored corpora to measure coverage
+against attacks the project did not write, and uses AgentDojo's data-first
+analysis to drive new prose rules. No engine refactor; pure rule + corpus
+additions. AgentDojo recall **1 / 35 → 23 / 35** (0.029 → 0.657) on the
+same committed corpus; synthetic gate intact.
+
+### Added
+
+- Independent corpora (non-gating cross-check):
+  - **AgentDojo** (ethz-spylab, MIT) committed at `tests/corpus/agentdojo/`,
+    35 injection-task GOALs across workspace / travel / banking / slack
+    suites. Run with
+    `cargo test -p apohara-compliance-scanner --test independent_corpus -- --ignored --nocapture`.
+    Numbers reported in [BENCHMARK.md](BENCHMARK.md).
+  - **AgentHarm** (ai-safety-institute; 176 augmented prompts / 44 base
+    behaviors) — **eval-only / no-redistribution**, so no examples are
+    committed; only a numbers/IDs-only report at
+    `tests/corpus/agentharm-report.json` (strict-schema-validated).
+- Data-first prose rules driven by the AgentDojo analysis: 13 new matches
+  on attacked (data-exfil 10/12, web-exfil 4/4, financial 5/5, structuring
+  1/1, PII 2/2, unauthorized-action 1/10, destructive 0/1 left deliberately
+  to avoid false positives).
+- `gitignore eval/` + AgentHarm canary leak guard (no eval-only corpus
+  escapes to the tracked tree).
+- Trust / supply-chain hardening: `SECURITY.md` re-checked; OpenSSF
+  Scorecard workflow pinned; Dependabot (cargo + github-actions); CodeQL
+  (Rust) workflow.
+
+### Notes
+
+- The 12 AgentDojo misses are **honestly out of reach for prose detection**:
+  9 are unauthorized-but-benign-looking actions (create a calendar event,
+  send an arbitrary email) whose maliciousness is injection context the
+  scanner cannot see from the action text; 1 is a single "delete the file"
+  destructive phrasing left unhandled to avoid false positives; 2 are
+  security-code exfiltration phrasings. Closing these would require
+  trajectory modeling (the v2.0 taint engine) or precision-eroding
+  overreach — neither is in scope for v1.4.
+- Honesty framing: what AgentDojo measures is **bait-keyword surface
+  coverage over labeled injection STRINGS — NOT injection-consequence
+  detection**. It shows whether apohara's vocabulary + word-boundary +
+  source/context machinery surfaces the attack *class*; it does **not**
+  show whether apohara detects the *consequence* of a successful injection
+  (that is the v2.0 trajectory taint work, ADR-4).
+
 ## [1.1.0] - 2026-06-06
 
 "Runtime & coverage". Additive features over v1.0.0 — the deterministic, offline
