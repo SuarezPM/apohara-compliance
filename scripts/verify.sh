@@ -832,6 +832,15 @@ if [ -f tests/corpus/v2.2-real-trajectory-report.json ]; then
     bad "v2.2 real-trajectory report failed the numbers/IDs-only schema (possible leak)"
   fi
 fi
+# v2.3 release-blocker: same discipline for the v2.3 argument-value-provenance report
+# (causal proxy, post-hoc, verbatim-flow). Mirrors validate_v22_report.py.
+if [ -f tests/corpus/v2.3-argument-value-provenance-report.json ]; then
+  if python3 scripts/eval/validate_v23_report.py >/dev/null 2>&1; then
+    pass "v2.3 argument-value-provenance report is numbers/IDs-only (strict schema validated, no key)"
+  else
+    bad "v2.3 argument-value-provenance report failed the numbers/IDs-only schema (possible leak)"
+  fi
+fi
 
 echo
 if [ "$fail" -eq 0 ]; then echo "ALL VERIFICATION CHECKS PASSED"; else echo "VERIFICATION FAILED"; fi
