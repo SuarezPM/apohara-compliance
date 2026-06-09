@@ -48,6 +48,13 @@ jobs:
           results_format: sarif
           # Publish to the OpenSSF REST API (enables the badge once we choose to wire it up).
           publish_results: true
+        # The webapp POST to api.scorecard.dev is external/best-effort and has
+        # intermittent context-deadline timeouts (2 consecutive failures seen
+        # 2026-06-09 12:55Z / 12:59Z, 1 success at 13:52Z). The analysis +
+        # SARIF + transparency-log entry all complete; only the public webapp
+        # upload times out. Mark the step as continue-on-error so the job stays
+        # green and the SARIF still reaches the code-scanning dashboard.
+        continue-on-error: true
 
       - name: "Upload artifact"
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
