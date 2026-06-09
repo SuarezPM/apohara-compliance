@@ -245,3 +245,52 @@ Added one S1 FP-trap (`rm -r ./build`, recursive-only, no force) → fires nothi
 {r,f} SET present). The `assert_eq!(eng.fp, 0)` moat stays enforced. Honest ceiling carries: a
 deterministic offline tokenizer raises the bar against cheap flag-order/spacing/bundling evasions,
 NOT against a determined obfuscator (subshells, eval, base64-decoded commands remain out of reach).
+
+## v2.3 (ADR-7) — Argument-Value Provenance (causal proxy, post-hoc, verbatim-flow) (2026-06-09)
+
+Engine: a NEW opt-in `require_value_from_source: Vec<String>` field on `TaintRule`
+(rules.rs, ADR-7). The field is `#[serde(default)]`, so existing YAML rules
+deserialize unchanged and the v2.2 path runs byte-identically when the flag is
+empty (verified by 13 existing taint tests + the new explicit
+`v23_g_empty_flag_byte_identical_to_v22` side-by-side test). When non-empty,
+`match_taints` latches the source value (extending the v2.2 forward-correlated
+latch slot from `&str` to `(&str, &str)`), and runs the v2.3 PROVENANCE CHECK
+on the matched sink: at least one authority-role value (recipient, amount, url,
+command) extracted from the sink via the FROZEN `sink_role_field_map` must be
+a substring of the latched source value, after ASCII-lowercasing and a
+6-character length floor (anti-coincidence guard). If no value flows, the
+candidate is suppressed (logged as `provenance-gate: <code> (no value-flow)`,
+distinct from allowlist suppression).
+
+Rules: 3 NEW AGT-TRJ-001/002/003-P variants — byte-identical mirrors of the
+originals with the new flag non-empty (AGT-TRJ-001-P gates on [recipient, url],
+AGT-TRJ-002-P on [command], AGT-TRJ-003-P on [recipient, amount]). Originals
+are NOT modified. Rule count 24 → 27.
+
+Re-measure (AgentDyn download corpus @ `5353cf7`, agentdojo 0.1.35, benchmark
+v1.2.2, 4 last-gen models, 3 open-ended suites, FROZEN dev/test split 44/192
+deterministic SHA-256 of `salt + path`): on the 192 TEST positives, v2.2 corr
+AGT-TRJ-* fires 138/192 (71.9%), v2.3 -P AGT-TRJ-*-P fires 100/192 (52.1%),
+delta = -38 candidates (the FP-killer result, honest number). FP controls:
+FAILED-injection 659/2295 (28.7%) → 319/2295 (13.9%); **BENIGN 5/352 (1.4%) →
+0/352 (0.0%)** (all 5 BENIGN FPs eliminated by the provenance gate). PREREG-v2.3
+SHA UNCHANGED post-scan (anti-fit guard); rules SHA changed ONLY because the
+PREREG-specified -P rules were appended (no post-freeze tuning).
+
+Honest ceiling: v2.3 is a POST-HOC SUBSTRING-MATCH PROXY for injection→
+consequence causation. It is necessary-but-not-sufficient (kills the FP class
+where the same sink fires on a clean trajectory; does NOT prove the value was
+LIFTED from the injection versus COINCIDENTALLY present). Verbatim-flow only;
+no cross-step laundering (PACT does that, apohara does not). Not Unicode-aware
+(ASCII-only); not semantic (exact-substring only); not runtime/preventive. v2.2
+numbers are PERMANENT and UNCHANGED; v2.3 -P numbers are an additional column,
+not a replacement. See ADR-7 §"What v2.3 is NOT" for the full ceiling.
+
+Quality: 180 unit + 28 integration + 9 new (7 unit per plan §0 a-g + 2
+integration FP-killer demos) = 217 tests; all green. `cargo clippy -p
+apohara-compliance-scanner --all-targets -- -D warnings` clean. `verify.sh`
+ALL VERIFICATION CHECKS PASSED (incl. the new `v2.3 argument-value-provenance
+report is numbers/IDs-only` schema check). PREREG blob SHA
+`5e62e9e2c4cfdf2a2e13c0005ae384c2f4a42eeb`; rules pre-freeze SHA
+`dcd1ac6e1d7ed8dce4b5b516296e8ce5a3e0582a`; rules post-freeze SHA
+`e88a99b64eeffd5c04e0d8b336cd9b45c9803dd8`.

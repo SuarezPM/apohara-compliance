@@ -7,7 +7,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/SuarezPM/apohara-compliance/codeql.yml?style=for-the-badge&label=CI)](https://github.com/SuarezPM/apohara-compliance/actions)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=for-the-badge)](#-license)
 [![Rust](https://img.shields.io/badge/rust-1.74%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/version-2.2.0-purple?style=for-the-badge)](https://github.com/SuarezPM/apohara-compliance/releases)
+[![Version](https://img.shields.io/badge/version-2.2.0--local-purple?style=for-the-badge)](https://github.com/SuarezPM/apohara-compliance/releases)
 [![SARIF](https://img.shields.io/badge/output-SARIF%202.1.0-success?style=for-the-badge)](https://sarifweb.azurewebsites.net)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/SuarezPM/apohara-compliance/badge?style=for-the-badge)](https://scorecard.dev/viewer/?uri=github.com/SuarezPM/apohara-compliance)
 
@@ -17,7 +17,7 @@ A deterministic Rust scanner that maps an AI coding agent's **observed actions**
 
 </div>
 
-> **Honesty lineage at a glance.** `main` carries the v1.1 release **plus** the additive v2.0 → v2.1 → v2.2 trajectory/taint work (ADR-4 → ADR-5 → ADR-6). The latest crates.io / GitHub Release tag is still **v1.1.0** — the v2.x line is shipped on `main` but **not yet tagged/published** (Pablo-gated). Everything v2.x is offline + deterministic + byte-identical to v1.1 on the single-action engine; the additive passes do not change the existing rules. See **[How it works / honesty](#-how-it-works--honesty)** and **[BENCHMARK.md](BENCHMARK.md)** for the bound triple and the explicit co-headline limit.
+> **Honesty lineage at a glance.** `main` carries the v1.1 release **plus** the additive v2.0 → v2.1 → v2.2 → v2.3 trajectory/taint work (ADR-4 → ADR-5 → ADR-6 → ADR-7). The latest crates.io / GitHub Release tag is still **v1.1.0** — the v2.x line is shipped on `main` but **not yet tagged/published** (Pablo-gated). Everything v2.x is offline + deterministic + byte-identical to v1.1 on the single-action engine; the additive passes do not change the existing rules. v2.3's -P variants are ADDITIVE, opt-in, byte-identical passthrough when the flag is empty. See **[How it works / honesty](#-how-it-works--honesty)** and **[BENCHMARK.md](BENCHMARK.md)** for the bound triple and the explicit co-headline limit.
 
 ---
 

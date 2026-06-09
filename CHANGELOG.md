@@ -5,6 +5,63 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-06-09
+
+"Argument-Value Provenance" (ADR-7). Additive, opt-in, byte-identical passthrough
+when the new flag is empty. The v2.3 PROVENANCE GATE mechanically kills most of
+the v2.2 correlation-FP on the FAILED bucket, zeroed the BENIGN FP, and dropped
+the TEST-positives headline from 71.9% to 52.1% — a post-hoc substring-match
+PROXY for injection→consequence causation (necessary-but-not-sufficient; verbatim-
+flow only; no cross-step laundering). Pre-registered (`tests/corpus/PREREG-v2.3.md`;
+rules frozen at blob SHA `dcd1ac6` BEFORE any source edit; PREREG SHA UNCHANGED
+post-scan). All LOCAL. See `docs/adr/ADR-7-argument-value-provenance.md` +
+`tests/corpus/PROOF-v2.3-argument-value-provenance.md` + the bound triple
+on the v2.3 TEST split in `BENCHMARK.md`.
+
+### Added
+
+- `TaintRule.require_value_from_source: Vec<String>` (ADR-7). Empty by default;
+  the v2.2 path runs byte-identically when the flag is empty (verified by 13
+  existing taint tests + the new explicit `v23_g_empty_flag_byte_identical_to_v22`
+  side-by-side test). The flag, when non-empty, triggers the v2.3 PROVENANCE
+  CHECK: at least one authority-role value (recipient, amount, url, command)
+  extracted from the sink must be a substring of the latched source value,
+  after ASCII-lowercasing and a 6-character length floor. If no value flows,
+  the candidate is suppressed.
+- 3 new AGT-TRJ-001/002/003-P rule variants (mirrors of the originals with
+  the new flag non-empty; gates: exfil=[recipient,url], destructive=[command],
+  financial=[recipient,amount]). Total rules: 24 → 27.
+- `scripts/eval/scan_v23_devtest.py` — apohara-AGNOSTIC scanner over the v2.2
+  AgentDyn corpus, reporting AGT-TRJ-* (v2.2 corr) vs AGT-TRJ-*-P (v2.3 -P)
+  side-by-side per model on the FROZEN dev/test split (44 dev / 192 test,
+  deterministic SHA-256 seed per `PREREG-v2.3.md`).
+- `scripts/eval/validate_v23_report.py` — strict numbers/IDs-only schema
+  validator for the v2.3 report (mirrors `validate_v22_report.py`).
+- 7 new unit tests (per plan §0 a-g) + 2 integration FP-killer demos. 180 → 189
+  tests, all green.
+
+### Headline (v2.3 TEST split, 192 positives)
+
+| Metric | v2.2 corr (b) | v2.3 -P (c) | Delta |
+|---|---|---|---|
+| TEST positives (192) | 138 / 192 = 71.9% | 100 / 192 = 52.1% | -38 |
+| FAILED (2295) | 659 = 28.7% | 319 = 13.9% | -340 (FP halved) |
+| BENIGN (352) | 5 = 1.4% | **0 = 0.0%** | -5 (all FP killed) |
+
+### Honest ceiling
+
+v2.3 reports: 100/192 (52.1%) on the TEST split, vs v2.2's 138/192 (71.9%).
+The 38-candidate drop is the FP-killer result. The 52.1% is a **post-hoc
+substring-match proxy** for injection→consequence causation: a candidate
+fires when an authority-role value in the sink is a substring of the latched
+source value. This is necessary-but-not-sufficient: it kills the FP class
+where the same sink fires on a clean trajectory, but it does NOT prove the
+value was lifted from the injection versus coincidentally present in the
+injection text. Verbatim-flow only; no cross-step laundering (PACT does
+that, apohara does not). v2.2 numbers are PERMANENT and UNCHANGED; the v2.3
+-P numbers are an additional column, not a replacement. See ADR-7 §"What
+v2.3 is NOT" for the full ceiling.
+
 ## [2.2.0] - 2026-06-09
 
 "Real-Trajectory Efficacy" (ADR-6). Additive — no scanner change; the engine is run

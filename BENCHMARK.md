@@ -261,6 +261,55 @@ gemini-3.1-pro-preview (20260219), minimax-m3 (20260531), claude-opus-4.8 (claud
 > retro-fit (the missed arg-keys like `iban`/`otp`/`repo_name` are a DOCUMENTED overlap-miss,
 > deliberately NOT closed). See ADR-6 + PROOF-v2.2-real-trajectory.md.
 
+## Argument-value provenance (v2.3) — kills the correlation-FP, post-hoc proxy for causation
+
+v2.3 (ADR-7) is a v2.3 SCOPE FOLLOW-UP that mechanically kills most of the v2.2
+correlation-FP by adding an OPT-IN `require_value_from_source` flag to
+`TaintRule` (the v2.3 PROVENANCE GATE). When a rule opts in, the candidate
+only fires if an authority-role value (recipient, amount, url, command)
+extracted from the sink is a substring of the latched source value, after
+ASCII-lowercasing + a 6-character length floor. The v2.2 path is BYTE-
+IDENTICAL when the flag is empty (verified by 13 existing taint tests + a
+new explicit v2.2-vs-v2.3 side-by-side test); the three AGT-TRJ-001/002/003-P
+variants are the OPT-IN versions. Pre-registered
+(`tests/corpus/PREREG-v2.3.md`; rules frozen at blob SHA `dcd1ac6…582a` BEFORE
+any source edit; verified UNCHANGED at the time of re-measure); NO retro-
+fit. See ADR-7 + PROOF-v2.3-argument-value-provenance.md.
+
+**HEADLINE.** On the v2.3 TEST split (192 positives, deterministic 20/80 dev/
+test split, 44 dev / 192 test, SHA-256 of `salt + path` < 20% → DEV): v2.3 -P
+fires on **100/192 (52.1%)** of REAL successful indirect-injection
+trajectories, vs the v2.2 correlation's **138/192 (71.9%)** on the same
+trajectories. The 38-candidate drop is the FP-killer result, achieved WITHOUT
+tuning any normalization, threshold, or weight to fit the corpus.
+
+**The bound triple — TEST split (192 positives, 4 last-gen models, 3 open-ended
+suites, FROZEN rules + FROZEN wrapper + the v2.3 release binary):**
+
+| | result |
+|---|---|
+| (b) v2.2 corr AGT-TRJ-* on the 192 TEST successes | **138/192 (71.9%)** — gemini-2.5-flash 49/70 · gemini-2.5-pro 71/96 · gpt-5.1 18/24 · gpt-5-mini 0/2 |
+| (c) v2.3 -P AGT-TRJ-*-P on the same 192 TEST successes | **100/192 (52.1%)** — gemini-2.5-flash 46/70 · gemini-2.5-pro 46/96 · gpt-5.1 8/24 · gpt-5-mini 0/2 · delta = -38 |
+| (d) v2.3 -P FP controls (full v2.2 FROZEN buckets) | FAILED **319/2295 (13.9%)** (was 28.7%) · **BENIGN 0/352 (0.0%)** (was 5) |
+
+The -P gate **zeroed the BENIGN FP** (5 → 0) and **halved the FAILED-injection
+FP** (28.7% → 13.9%). On the BENIGN bucket, the v2.2 corr made 5 spurious
+AGT-TRJ fires on clean (no-injection) trajectories; the v2.3 -P gate
+eliminated all of them because the legit recipient/command never appears in
+a source value that lacks an injection marker — the FP-killer demo, 100% on
+the BENIGN bucket.
+
+> **The honest framing — what v2.3 is NOT.** The 52.1% is a POST-HOC
+> SUBSTRING-MATCH PROXY, not causation. Necessary-but-not-sufficient: it kills
+> the FP class where the same sink fires on a clean trajectory, but it does
+> NOT prove the value was LIFTED from the injection versus COINCIDENTALLY
+> present in the injection text. Verbatim-flow only; no cross-step laundering
+> (PACT does that, apohara does not). Not Unicode-aware (ASCII-only case
+> folding); not semantic (exact-substring only); not runtime/preventive (post-
+> hoc over transcripts). v2.2 numbers (138/192, 28.7%, 5/352) are PERMANENT
+> and UNCHANGED; the v2.3 -P numbers are an additional column, not a
+> replacement. See ADR-7 §"What v2.3 is NOT" for the full ceiling.
+
 ## Limitations
 
 Read these before quoting any number:
