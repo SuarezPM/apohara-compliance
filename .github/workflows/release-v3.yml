@@ -242,17 +242,19 @@ jobs:
         # release stays green and the crate is published deliberately, not by
         # accident (cargo publish is irreversible — a version name can never be
         # reused once taken).
-        # rev 2: appended `|| true` — cargo rejects re-publishing an already-uploaded
-        # version name (even after yank) with "crate version X is already uploaded".
-        # The .crate file SHA is already on the registry from the prior publish;
-        # a re-publish would fail forever. Treat the publish step as best-effort:
-        # the GH Release + cosign + attestation are the primary deliverables, the
-        # crates.io upload is a one-shot side effect that the workflow cannot repeat.
+        # rev 3: continue-on-error: true — cargo rejects re-publishing an
+        # already-uploaded version name (even after yank) with "crate version X
+        # is already uploaded". The .crate file SHA is already on the registry
+        # from the prior publish; a re-publish would fail forever. Treat the
+        # publish step as best-effort: the GH Release + cosign + attestation are
+        # the primary deliverables, the crates.io upload is a one-shot side
+        # effect that the workflow cannot repeat.
+        continue-on-error: true
         run: |
           if [ -z "${CARGO_REGISTRY_TOKEN}" ]; then
             echo "CARGO_REGISTRY_TOKEN not set — skipping crates.io publish."
             exit 0
           fi
-          cargo publish --locked --package "${{ env.BIN_NAME }}" || true
+          cargo publish --locked --package "${{ env.BIN_NAME }}"
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
