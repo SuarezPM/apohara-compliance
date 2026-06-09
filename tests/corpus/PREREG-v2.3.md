@@ -126,10 +126,13 @@ For each row of the v2.3 report:
   many fire AGT-TRJ-*-P (must be ~0). The provenance gate should REDUCE (b)'s
   28.7% correlation FP. The honest number, whatever it is, is reported.
 
-## Frozen SHA (record AFTER this commit; recorded BEFORE any source change)
+## Frozen SHA (recorded AFTER this commit; BEFORE any source change)
 
-- **PREREG-v2.3.md blob SHA** (to be filled in by the post-commit hook in the
-  implementation step): `<SHA-after-commit>`.
+- **PREREG-v2.3.md blob SHA** (initial, pre-backfill): `a71508b44d91712e4b02927699ddedde2a853a87`
+  (computed via `git hash-object tests/corpus/PREREG-v2.3.md` immediately after the
+  freezing commit `4abba7b`).
+- **Freezing commit**: `4abba7b1bee91b4939638926e3fc6f6392dbb852` — "v2.3 (P0):
+  PREREG-v2.3 freeze + deterministic dev/test split".
 - **Last commit that touched `crates/scanner/references/detection-rules.yaml` BEFORE
   the v2.3 edit**: `9a0385f` — "feat(scanner): structural shell tokenizer for
   flag-reorder evasions (v2.1 WS2-b / AC3.3, ADR-5 S1)".
