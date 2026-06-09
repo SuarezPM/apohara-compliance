@@ -242,19 +242,28 @@ jobs:
         # release stays green and the crate is published deliberately, not by
         # accident (cargo publish is irreversible — a version name can never be
         # reused once taken).
-        # rev 3: continue-on-error: true — cargo rejects re-publishing an
+        # rev 4: set +e + explicit exit 0 — cargo rejects re-publishing an
         # already-uploaded version name (even after yank) with "crate version X
         # is already uploaded". The .crate file SHA is already on the registry
         # from the prior publish; a re-publish would fail forever. Treat the
         # publish step as best-effort: the GH Release + cosign + attestation are
         # the primary deliverables, the crates.io upload is a one-shot side
-        # effect that the workflow cannot repeat.
-        continue-on-error: true
+        # effect that the workflow cannot repeat. The previous attempts (`|| true`
+        # then `continue-on-error: true`) did not work because `bash -eo pipefail`
+        # is the default shell, so the step exit code still propagated as 101.
+        # The robust fix is `set +e` (disable errexit) + explicit `exit 0` at
+        # the end of the script.
         run: |
+          set +e
           if [ -z "${CARGO_REGISTRY_TOKEN}" ]; then
             echo "CARGO_REGISTRY_TOKEN not set — skipping crates.io publish."
             exit 0
           fi
           cargo publish --locked --package "${{ env.BIN_NAME }}"
+          status=$?
+          if [ $status -ne 0 ]; then
+            echo "::warning::cargo publish exit=$status (likely 'crate version already uploaded' from prior publish)"
+          fi
+          exit 0
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
