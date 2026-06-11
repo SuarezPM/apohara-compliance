@@ -53,35 +53,36 @@ prereg (NOT in v2.3):
   prereg could explore alternative similarity measures for this code if
   evidence shows it's worth closing the destructive-action gap.
 
-## v2.3 follow-up B — AgentDyn open-ended frontier run (DEFERRED, Pablo-gated)
+## v2.3 follow-up B — AgentDyn open-ended frontier run (REPLACED by ADR-8, 2026-06-11)
 
-v2.2's live run used `suite=workspace` (the AgentDojo standard suite) because
-the current-frontier OpenRouter IDs are NOT in AgentDyn's `model_registry.py`.
-The result was 0/80 (all models resisted). AgentDyn provides 3 harder
-open-ended suites (shopping, github, dailylife) where last-gen models reached
-14–22% ASR; current-frontier behavior on those is UNMEASURED.
+~~Original gate (v2.3 plan, 2026-06-08): "AgentDyn supports custom model
+registration (env var, config override, or monkey-patch of `model_registry.py`)."~~
 
-**Gate to close:** AgentDyn supports custom model registration (env var,
-config override, or monkey-patch of `model_registry.py`) so the
-`run_openrouter_e2e.py` harness can target the harder suites. If custom
-registration works, estimate token budget for 5 models × 3 suites (~5M
-tokens estimated, dependent on model tier). **Pablo-gated** — explicit
-authorization + OpenRouter key budget required before the run. Phase B-0
-feasibility check is the only committed work; the B-1 run is DEFERRED.
+**REPLACED** by ADR-8 (`docs/adr/ADR-8-agentdyn-open-ended-frontier.md`) on
+2026-06-11. The v2.4 RALPLAN consensus (`.omc/plans/v2.4-argument-value-provenance-followups.md`
+Rev 2) discovered the v2.2 harness already bypasses AgentDyn's
+`model_registry.py` entirely — `OpenAILLM(client, model)` is instantiated
+directly with the OpenRouter id (`scripts/eval/run_openrouter_e2e.py:124-134`).
+The `--suite` flag is already wired to `get_suites(BENCH)[args.suite]` (line
+166). The "registry override + monkey-patch" mechanism in the v2.3 plan was
+solving a non-existent problem. The actual v2.4 deliverable is a capability
+probe (B-0.1) + a per-(model, suite) token cap (currently a single global
+cap at line 141) + a Pablo-gated live run (B-1) + a -P re-measure (B-2,
+conditional on v2.3 + B-1). **Pablo-gated** — explicit authorization +
+OpenRouter key budget required before B-1.
 
-## v2.3 follow-up C — S2 full shell AST escalation (conch-parser gate)
+## v2.3 follow-up C — S2 full shell AST escalation (REPLACED by ADR-9, 2026-06-11)
 
-WS2-b ships S1 (`shlex` tokenizer). The S2 escalation to a full POSIX shell
-AST is **gated** on a green `cargo tree -e no-dev` + `cargo audit` for the
-candidate parser. Investigation COMPLETE (per `.omc/plans/v2.3-followups.md`
-§3):
+~~Original gate (v2.3 plan, 2026-06-08): "fork/vendor conch-parser into
+`crates/conch-parser-vendor/`" — gated on a green `cargo tree -e no-dev` +
+`cargo audit` for the candidate parser.~~
 
-| Candidate | Verdict |
-|---|---|
-| `conch-parser` (ipetkov, Apache-2.0/MIT) | **PASSES** the dep-graph + audit gate (only dep is `void`; no denylisted crate). ⚠️ ARCHIVED since 2021 — no upstream maintenance. Mitigation: vendor/fork into `crates/conch-parser-vendor/`. |
-| `brush-parser` | DISQUALIFIED (transitive `tokio` on the dep-graph denylist). |
-| `flash` | DISQUALIFIED (GPL-3.0 license incompatible with apohara's dual Apache-2.0/MIT). |
-| `yash-syntax` | DISQUALIFIED (GPL-3.0-or-later). |
-
-S2 is DECORRELATED from the v2.3 causal-proxy deliverable and can proceed
-independently. Implementation is a separate workstream (not in v2.3).
+**REPLACED** by ADR-9 (`docs/adr/ADR-9-posix-shell-parser-ativo.md`) on
+2026-06-11. Pablo reversed the vendor direction (2026-06-11): **design our
+own active, maintained parser from scratch in apohara**. The v2.4 RALPLAN
+consensus decided hand-rolled recursive descent, in-tree, no external deps,
+focused subset (pipeline | subshell | command_substitution | heredoc | simple
++ redirection; control flow and arithmetic are EXPLICITLY OUT). Three-mechanism
+safety split per ADR-9: `#[serde(default)]` on `parse_ast: bool` (v2.3 → v2.4
+transition), per-rule `parse_ast: bool` (circuit breaker), and `shell-ast`
+Cargo feature (binary surface). All three are kept; none is redundant.

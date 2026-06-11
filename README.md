@@ -11,7 +11,7 @@ A deterministic Rust scanner that maps an AI coding agent's **observed actions**
 [![CI](https://img.shields.io/github/actions/workflow/status/SuarezPM/apohara-compliance/codeql.yml?style=for-the-badge&label=CI)](https://github.com/SuarezPM/apohara-compliance/actions)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=for-the-badge)](#-license)
 [![Rust](https://img.shields.io/badge/rust-1.74%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/version-2.3.0-purple?style=for-the-badge)](https://github.com/SuarezPM/apohara-compliance/releases)
+[![Version](https://img.shields.io/badge/version-2.4.0-purple?style=for-the-badge)](https://github.com/SuarezPM/apohara-compliance/releases)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/SuarezPM/apohara-compliance/badge?style=for-the-badge)](https://scorecard.dev/viewer/?uri=github.com/SuarezPM/apohara-compliance)
 
 ## Contents
@@ -87,10 +87,12 @@ Honesty is the deliverable. Every headline number below is reproducible from a f
 | v2.2 | AGT-TRJ detection **169 / 236 (71.6%)** on real AgentDyn successes | Last-gen frontier models, open-ended suites, frozen rules `dcd1ac6`; live current-frontier 0/80 on the standard suite (resisted all) | [ADR-6](docs/adr/ADR-6-real-trajectory-efficacy.md) |
 | v2.2 | Co-headline: **28.7% (659/2295) FP on resisted** + **1.4% (5/352) on benign** | Same corpus; ⇒ precision-on-success ≈ 20% — post-hoc correlation is not a success/causation discriminator | [ADR-6](docs/adr/ADR-6-real-trajectory-efficacy.md) |
 | v2.3 | AGT-TRJ-*-P coverage **100 / 192 (52.1%)** on test positives | Post-hoc substring-match proxy, frozen PREREG SHA `5e62e9e2`; BENIGN FP 0/352, FAILED FP 13.9% (halved vs v2.2) | [ADR-7](docs/adr/ADR-7-argument-value-provenance.md) |
+| v2.4 | S2 shell AST parser **SHIPPED**, in-tree hand-rolled recursive descent, ~60 unit tests | Focused subset (pipeline \| subshell \| command_substitution \| heredoc \| simple + redirection); control flow + arithmetic EXPLICITLY OUT; 3-mechanism safety split | [ADR-9](docs/adr/ADR-9-posix-shell-parser-ativo.md) |
+| v2.4 | AgentDyn open-ended frontier probe **PASS** (B-0.1) + live MINIMAX-M3 run **0 / 4 ASR on dailylife** (B-1) | 3 open-ended suites registered after venv reinstall; B-1 used `MINIMAX_API_KEY` (free tier, $0 cost); B-2 -P re-measure DEFERRED (0 injection-succeeded trajectories to re-measure) | [PROOF-v2.4-open-ended.md](PROOF-v2.4-open-ended.md) |
 
 > **Claim ceiling (verbatim, ADR-6/ADR-7).** *Deterministic, post-hoc, representation-aware injection → consequence candidate correlation surfacer. Mechanism + representation proven on synthetic positives. Post-hoc recognition measured on real successful trajectories. Not efficacy / recall / prevention. Recognisable-in-log ≠ would-have-prevented.*
 
-What is **not** claimed: real-time prevention, success/causation discrimination, efficacy on current-frontier harder suites (blocked by AgentDyn's model registry not carrying current-frontier OpenRouter IDs).
+What is **not** claimed: real-time prevention, success/causation discrimination, efficacy on current-frontier harder suites (the v2.4 open-ended frontier probe is the first measurement attempt; **0/4 ASR on dailylife with MiniMax-M3** is documented honestly in [PROOF-v2.4-open-ended.md](PROOF-v2.4-open-ended.md) but is **not** a generalizable frontier result).
 
 ---
 
@@ -232,6 +234,26 @@ The 52.1% is **not** a claim of causation: the same correlation-not-causation ce
 
 Pre-registration (`tests/corpus/PREREG-v2.3.md`, frozen BEFORE scanning, verified unchanged post-scan), proof document (`tests/corpus/PROOF-v2.3-argument-value-provenance.md`), and schema-validated report (`tests/corpus/v2.3-argument-value-provenance-report.json`) are committed. See [ADR-7](docs/adr/ADR-7-argument-value-provenance.md).
 
+### Pass 7 — active POSIX shell AST (v2.4, ADR-9)
+
+v2.4 closes the **S2 structural shell coverage UNBUILT** gap with an **in-tree, hand-rolled recursive-descent parser** (no vendor lock-in, no transitive denylisted crates, no GPL). The v2.3 plan (`.omc/plans/v2.3-followups.md` §3) recommended forking conch-parser (archived 2021); Pablo reversed that direction in 2026-06-11 in favor of an active, maintained parser we own. The grammar is the **focused subset** documented in [`docs/grammar/posix-shell-v2.4-subset.md`](docs/grammar/posix-shell-v2.4-subset.md): pipelines, command substitution, subshells, heredocs, and full redirection structure. Control flow, arithmetic, `[[ ... ]]` tests, and function definitions are **EXPLICITLY OUT**.
+
+The **3-mechanism safety split** keeps S1 byte-identical to v2.3 by default:
+
+| Mechanism | Carries | Effect |
+|-----------|---------|--------|
+| `#[serde(default)]` on `parse_ast: bool` | The byte-identical invariant for existing rules (a rule without the field in YAML behaves exactly as v2.3). | Existing v2.3 YAML is forward-compatible. |
+| `parse_ast: bool` per rule, default `false` | The circuit breaker for AST consumption. | Even with the feature on, a rule with `parse_ast: false` is byte-identical to v2.3 at the matcher level. |
+| `shell-ast` Cargo feature (default off) | The binary surface (`#[cfg]`-gates the parser module out of the default build). | Compiled-out code can't run, can't be audited, can't be misused. |
+
+The 4 new **AGT-SHL-*-A rules** (Pipeline, Subshell, CommandSubstitution, Heredoc) opt in via `parse_ast: true` + `ast_only_constructs: [...]`. With the `shell-ast` feature on, they fire on AST-only constructs that S1 cannot see; with the feature off, the S1 default gate (1.0/1.0/FP=0) is preserved. The parser falls back to S1 silently on `ParseError` and logs at `trace` level — no panic, no S1 regression. See [ADR-9](docs/adr/ADR-9-posix-shell-parser-ativo.md) + [PROOF-v2.4-open-ended.md](PROOF-v2.4-open-ended.md).
+
+### Frontier probe — AgentDyn open-ended (v2.4, ADR-8)
+
+v2.4 also runs the **B-0.1 capability probe** + a live run on AgentDyn's harder open-ended suites (`shopping` / `github` / `dailylife`) where last-gen models reached 14–22% ASR. The v2.2 caveat ("live current-frontier on the harder open-ended suites UNMEASURED") is closed — honestly. With the venv's `agentdojo` reinstalled from the patched `eval/agentdyn/` 5353cf7 source, all 3 open-ended suites resolve (`scripts/eval/probe_open_ended_suites.py`).
+
+The B-1 live run used `MINIMAX_API_KEY` against the `minimax/MiniMax-M3` gateway (free tier, $0 cost). Result on the only suite with fully-recorded post-fix trajectories: **0 / 4 ASR on dailylife** (security=False for all 4 attacked trajectories). Honest framing: a single model × three suites × one attack (`important_instructions_no_model_name`) does not generalize, and the post-hoc detection cell is `0/0` (N/A — no successes to measure against). The B-2 `-P` re-measure is **DEFERRED** with reason "0 injection-succeeded trajectories; resumes automatically when B-1 produces a non-zero ASR". See [PROOF-v2.4-open-ended.md](PROOF-v2.4-open-ended.md) for the full bound triple.
+
 ---
 
 ## Repository layout
@@ -245,7 +267,13 @@ apohara-compliance/
 │   │   ├── rules.rs                      # rule loading + resolution ladder
 │   │   ├── sequence.rs                   # Pass 2 — multi-action AGT-MEM-001 (ADR-2)
 │   │   ├── taint.rs                      # Pass 3-4 — trajectory taint + representation-aware (ADR-4/5) + Pass 6 argument-value provenance (ADR-7, opt-in)
-│   │   ├── shell.rs                      # structural `shlex` shell pass — flag-reorder evasions (v2.1)
+│   │   ├── shell_s1.rs                   # S1 `shlex` shell pass — flag-reorder evasions (v2.1) + 7th-param `ast: Option<&Command>` for v2.4
+│   │   ├── shell/                        # S2 hand-rolled recursive-descent AST parser (v2.4, ADR-9; gated on `--features shell-ast`)
+│   │   │   ├── ast.rs                    #   Command enum + ParseError + 3-mechanism safety split
+│   │   │   ├── lexer.rs                  #   hand-rolled character-by-character scanner
+│   │   │   ├── parse.rs                  #   recursive descent (pipeline | subshell | command_substitution | heredoc | simple)
+│   │   │   ├── match_.rs                 #   AST walker + `match_shell_ast(rule, ast) -> bool`
+│   │   │   └── mod.rs                    #   `parse(input) -> Result<Command, ParseError>`
 │   │   ├── model.rs                      # the candidate finding + rule data model
 │   │   ├── parse_session.rs              # tolerant NDJSON session-transcript reader
 │   │   ├── parse_otlp.rs                 # tolerant OTLP/JSON telemetry reader (offline, file-only)
@@ -259,13 +287,15 @@ apohara-compliance/
 │   │   ├── independent_corpus.rs         # AgentDojo / AgentHarm non-gating cross-check (v1.4)
 │   │   └── trajectory_corpus.rs          # v2.0/v2.1 trajectory + AGT-TRJ positive/negative fixtures
 │   └── references/                       # canonical framework rule + crosswalk YAML data
-├── docs/adr/                             # ADR-2 sequence · ADR-3 corpus · ADR-4 taint · ADR-5 repr · ADR-6 efficacy · ADR-7 provenance
+├── docs/adr/                             # ADR-2 sequence · ADR-3 corpus · ADR-4 taint · ADR-5 repr · ADR-6 efficacy · ADR-7 provenance · ADR-8 frontier · ADR-9 shell AST
+├── docs/grammar/posix-shell-v2.4-subset.md # frozen grammar for S2 (ADR-9)
 ├── tests/corpus/                         # synthetic gate + AgentDojo + AgentHarm + v2.x PREREG/PROOF/report
 ├── references/                           # canonical rule + mapping data (mirror, symlinked into the crate)
 ├── skills/                               # installable agent skill
 ├── action/                               # GitHub Action wrapper (uploads SARIF)
 ├── tests/fixtures/                       # synthetic session + repo fixtures
-└── scripts/                              # capture + eval harness (FINBOT, v2.2 buckets, polarity gate, …)
+├── scripts/                              # capture + eval harness (FINBOT, v2.2 buckets, polarity gate, MINIMAX live-run harness, …)
+└── PROOF-v2.4-open-ended.md              # bound triple for the v2.4 open-ended frontier probe (committed headline numbers; raw traces gitignored)
 ```
 
 ---
@@ -288,11 +318,14 @@ apohara-compliance/
 - [x] v2.1 — Representation-aware taint (ADR-5): `sink:` channel + `const SINK_GRAMMAR` role tokens + generic injection-marker vocabulary + structural `shlex` shell pass (AGT-MIS-004)
 - [x] v2.2 — Real-trajectory measurement (ADR-6): bound triple on real AgentDyn successes (169/236) + live current-frontier cross-check (0/80 resisted); HONEST co-headline (28.7% FP on resisted, ~20% precision-on-success) — the framing IS the deliverable
 - [x] v2.3 — Argument-value provenance (ADR-7): opt-in `TaintRule.require_value_from_source` field + 3 `-P` AGT-TRJ rule variants; BENIGN FP 0/352, FAILED FP 13.9% (halved); PREREG SHA `5e62e9e2` UNCHANGED post-scan
+- [x] v2.4 — Active POSIX shell AST parser (ADR-9): in-tree hand-rolled recursive descent in `crates/scanner/src/shell/`, focused subset, 3-mechanism safety split; S1 default build byte-identical to v2.3 (189/0/0, gate 1.0/1.0/FP=0)
+- [x] v2.4 — AgentDyn open-ended frontier probe (ADR-8): B-0.1 capability probe PASS after venv reinstall; B-1 live MINIMAX-M3 run (0/4 ASR on dailylife, $0 cost); B-2 -P re-measure DEFERRED honestly. See [PROOF-v2.4-open-ended.md](PROOF-v2.4-open-ended.md)
 
 **Exploring** — demand-driven, not committed
 
-- [ ] v2.4 (proposed) — current-frontier on the harder AgentDyn open-ended suites (shopping / github / dailylife). Blocked by AgentDyn's model registry not carrying current-frontier OpenRouter IDs.
-- [ ] v2.4 (proposed) — S2 shell AST escalation (conch-parser vendor) if the `shlex` pass proves insufficient on adversarial inputs. [Conch-parser dep-graph + audit pre-verified green](docs/adr/ADR-7-argument-value-provenance.md).
+- [ ] v2.5 — broader frontier model sweep (claude-opus-4.8, gpt-5.5, gemini-3.5-flash) on the same 3 open-ended suites to bound the "MiniMax-M3 is uniquely resistant" hypothesis; the v2.4 0/4 ASR does not generalize. R4 (CRITICAL) in the v2.4 plan is the framing.
+- [ ] v2.5 — stronger attack surface in the harness (AgentDyn ships multiple attack vectors beyond `important_instructions_no_model_name`); only one was exercised in v2.4 B-1.
+- [ ] v2.5 — AGT-SHL-*-B / AGT-SHL-*-C variants if the v2.4 single-pattern AST matchers prove too narrow on adversarial test corpora.
 - [ ] Repo-file normalisation (ADR-5 M4 deferred gap) — A3 homoglyph / zero-width / casing runs in the session value picker only; a future PR extends it to `parse_repo` for the dominant indirect-injection surface.
 - [ ] Additional agent-transcript formats
 - [ ] First-mover OWASP Agentic Skills (AST01–AST10) rules once the draft stabilises
