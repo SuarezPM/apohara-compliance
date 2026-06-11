@@ -445,29 +445,6 @@ fn parse_heredoc_body(
     })
 }
 
-/// Convenience constructor for `Command::Simple` from an argv slice.
-#[allow(dead_code)]
-pub(crate) fn simple(argv: Vec<Word>) -> Command {
-    Command::Simple { argv, redirections: vec![], heredoc: None }
-}
-
-/// Convenience constructor for `Redirection`.
-#[allow(dead_code)]
-pub(crate) fn redir(op: RedirOp, target: Word) -> Redirection {
-    Redirection { op, target }
-}
-
-/// Re-export for the matcher helper.
-#[allow(dead_code)]
-pub(crate) fn subst_dollar(body: Command) -> Command {
-    Command::Substitution { kind: SubstitutionKind::DollarParen, body: Box::new(body) }
-}
-
-#[allow(dead_code)]
-pub(crate) fn subst_backtick(body: Command) -> Command {
-    Command::Substitution { kind: SubstitutionKind::Backtick, body: Box::new(body) }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
