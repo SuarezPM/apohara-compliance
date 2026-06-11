@@ -21,6 +21,8 @@ mod parse_repo;
 mod parse_session;
 mod rules;
 mod sequence;
+mod shell_s1;
+#[cfg(feature = "shell-ast")]
 mod shell;
 mod suppress;
 mod taint;

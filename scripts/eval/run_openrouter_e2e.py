@@ -26,24 +26,76 @@ Run: eval/.venv/bin/python scripts/eval/run_openrouter_e2e.py
 import argparse
 import json
 import os
+import re
 import sys
 import time
 
 AUTH = os.path.expanduser("~/.local/share/opencode/auth.json")
-BASE_URL = "https://openrouter.ai/api/v1"
+
+# v2.4 B-1 provider: the harness defaults to OpenRouter (the v2.2 path,
+# v2.3 / PR #10 used it). To use the MINIMAX gateway instead, set both
+# APOHARA_EVAL_PROVIDER=minimax and (optionally) APOHARA_EVAL_BASE_URL +
+# APOHARA_EVAL_MODEL. The auth.json `minimax.key` is read when
+# APOHARA_EVAL_PROVIDER=minimax; the `openrouter.key` is read otherwise.
+# No key is ever logged. The selection is reflected in usage-proof.jsonl
+# under the `provider` field so the post-hoc scan can distinguish runs.
+PROVIDER = os.environ.get("APOHARA_EVAL_PROVIDER", "minimax").lower()
+PROVIDERS = {
+    "openrouter": {
+        "auth_key": "openrouter",
+        "base_url": os.environ.get("APOHARA_EVAL_BASE_URL", "https://openrouter.ai/api/v1"),
+        "default_model": "openrouter/anthropic/claude-sonnet-4.6",
+        # OpenRouter expects the `<provider>/<model>` id verbatim
+        # (e.g. `openrouter/anthropic/claude-sonnet-4.6`).
+        "strip_prefix": None,
+    },
+    "minimax": {
+        "auth_key": "minimax",
+        "base_url": os.environ.get("APOHARA_EVAL_BASE_URL", "https://api.minimax.io/v1"),
+        "default_model": os.environ.get("APOHARA_EVAL_MODEL", "MiniMax-M3"),
+        # The MINIMAX OpenAI-compatible gateway expects the bare model
+        # name (e.g. `MiniMax-M3`). We accept either form (bare or
+        # `minimax/<bare>`) at the CLI and normalize to bare in
+        # `validate_model_ids`.
+        "strip_prefix": "minimax/",
+        "valid_prefixes": ("", "minimax/"),
+    },
+}
+_PROVIDER_CONF = PROVIDERS.get(PROVIDER)
+if _PROVIDER_CONF is None:
+    raise SystemExit(
+        f"APOHARA_EVAL_PROVIDER={PROVIDER!r} is not supported. "
+        f"Choices: {sorted(PROVIDERS.keys())}"
+    )
+BASE_URL = _PROVIDER_CONF["base_url"]
+_AUTH_KEY = _PROVIDER_CONF["auth_key"]
 HERE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT_DIR = os.path.join(HERE, "eval", "v22-live")
 
 # Phase-0-verified current-frontier ids (all passed AC4.1 smoke).
+# v2.4 B-1 uses the MINIMAX gateway by default (Pablo-gated 2026-06-11:
+# no paid budget, free-tier MiniMax-M3). Override via APOHARA_EVAL_MODEL
+# env var. The list is kept as a single element so the open-ended
+# frontier run is bounded to one model × three suites.
 DEFAULT_MODELS = [
-    "openai/gpt-5.5",
-    "google/gemini-3.5-flash",
-    "google/gemini-3.1-pro-preview",
-    "minimax/minimax-m3",
-    "anthropic/claude-opus-4.8",
+    _PROVIDER_CONF["default_model"],
 ]
 ATTACK = "important_instructions_no_model_name"
 BENCH = "v1.2.2"
+# Per-(model, suite) token ceiling. Conservative: v2.2 used ~700k for 4x20
+# workspace tasks (~17.5k per task). Open-ended trajectories are ~7x longer
+# (ADR-8 consequence), so a single (model, suite) pair can easily exceed
+# 100k. 150k is the default safety net — small enough to hard-stop a bad
+# run before it burns the global --cap, large enough to let one full pair
+# complete when trajectories stay in the expected band. Set to 0 to
+# disable the per-pair cap and rely solely on the global --cap.
+DEFAULT_CAP_PER_PAIR = 150_000
+# OpenRouter ids are routable names that always carry a "<provider>/<model>"
+# slash. The slash is what tells OpenRouter which upstream provider to
+# dispatch to. An id without a slash is a malformed local alias and will
+# surface as a 4xx from the router; the harness must catch that locally
+# so it can log + skip the cell instead of crashing the run.
+_OPENROUTER_ID_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
 
 
 class BudgetExceeded(Exception):
@@ -61,6 +113,73 @@ class Budget:
         self.calls += 1
         if self.total > self.cap:
             raise BudgetExceeded(f"cumulative tokens {self.total} > cap {self.cap}")
+
+
+class PairBudgetExceeded(Exception):
+    """Raised when a single (model, suite) pair exceeds --cap-per-pair."""
+
+    def __init__(self, pair_total, cap, model, suite):
+        self.pair_total = pair_total
+        self.cap = cap
+        self.model = model
+        self.suite = suite
+        super().__init__(
+            f"per-pair cap hit for model={model} suite={suite}: "
+            f"pair tokens {pair_total} > cap {cap}"
+        )
+
+
+class PairBudget:
+    """Per-(model, suite) token counter. Independent from the global Budget.
+
+    --cap is the cumulative ceiling across the WHOLE run; --cap-per-pair is
+    the per-pair ceiling. The two are checked independently: per-pair fires
+    first if the harness overspends on a single (model, suite) cell, and
+    the global cap fires only if the sum across all pairs overflows.
+    """
+
+    def __init__(self, cap, model, suite):
+        self.cap = cap
+        self.model = model
+        self.suite = suite
+        self.total = 0
+        self.calls = 0
+
+    def add(self, n):
+        self.total += int(n or 0)
+        self.calls += 1
+        if self.cap is not None and self.cap > 0 and self.total > self.cap:
+            raise PairBudgetExceeded(self.total, self.cap, self.model, self.suite)
+
+
+def validate_model_ids(models):
+    """Return a (clean, bad) tuple. `bad` lists ids that don't look like
+    routable model names for the active provider. The harness keeps
+    going on `clean` and prints a clear per-id error for each entry in
+    `bad`; it NEVER silently drops a malformed id.
+
+    Validation is provider-aware:
+    - openrouter: `<provider>/<model>` (e.g. `openai/gpt-5.5`).
+    - minimax: bare (e.g. `MiniMax-M3`) OR `minimax/<bare>` (normalized
+      to bare at the OpenAILLM call site).
+    """
+    clean, bad = [], []
+    for m in models:
+        if not isinstance(m, str) or not m:
+            bad.append(m)
+            continue
+        if PROVIDER == "minimax":
+            stripped = m.removeprefix("minimax/")
+            if not stripped or "/" in stripped:
+                bad.append(m)
+                continue
+            clean.append(m)
+        else:  # openrouter
+            if not _OPENROUTER_ID_RE.match(m):
+                bad.append(m)
+            else:
+                clean.append(m)
+    return clean, bad
 
 
 def _fc_to_dict(call):
@@ -123,6 +242,12 @@ def serialize_messages(messages):
 
 def build_pipeline(client, model, OpenAILLM, AgentPipeline, SystemMessage, InitQuery,
                    ToolsExecutionLoop, ToolsExecutor, load_system_message):
+    # Some providers (e.g. MINIMAX) want the bare model name without a
+    # `<provider>/` prefix; others (OpenRouter) want the prefix verbatim.
+    # `_PROVIDER_CONF["strip_prefix"]` controls the transformation; None
+    # means no change.
+    if _PROVIDER_CONF.get("strip_prefix"):
+        model = model.removeprefix(_PROVIDER_CONF["strip_prefix"])
     llm = OpenAILLM(client, model)
     sysmsg = load_system_message(None)
     pipeline = AgentPipeline(
@@ -138,13 +263,50 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", nargs="*", default=DEFAULT_MODELS)
     ap.add_argument("--suite", default="workspace")
-    ap.add_argument("--cap", type=int, default=1_000_000, help="hard cumulative token cap")
+    ap.add_argument("--cap", type=int, default=1_000_000,
+                    help="hard cumulative token cap (across the WHOLE run)")
+    ap.add_argument("--cap-per-pair", type=int, default=DEFAULT_CAP_PER_PAIR,
+                    help=("per-(model, suite) token cap. Independent from "
+                          "--cap (which is cumulative across all pairs). "
+                          "Exceeding it for one pair stops THAT pair, marks "
+                          "cap_hit=true, and the harness moves on to the next "
+                          "model. Set to 0 to disable the per-pair cap."))
     ap.add_argument("--user-tasks", type=int, default=4, help="# user_tasks per model")
     ap.add_argument("--injection-tasks", type=int, default=4, help="# injection_tasks per model")
     ap.add_argument("--benign", type=int, default=3, help="# benign user_tasks per model")
     args = ap.parse_args()
 
-    key = json.load(open(AUTH))["openrouter"]["key"]  # local var only; never logged
+    # Per-pair (model, suite) cells to attempt. The v2.2 harness hard-codes a
+    # single --suite flag (the B-0 capability probe established whether
+    # {shopping, github, dailylife} are registered in the installed
+    # agentdojo — see scripts/eval/probe_open_ended_suites.py). When the
+    # probe returns DEFER, the per-(model, suite) cap is moot; the cap is
+    # most useful on the B-1 grid once the open-ended suites are wired in.
+    pair_cap = None if args.cap_per_pair == 0 else args.cap_per_pair
+
+    # Malformed model ids (no "/" or otherwise not a routable OpenRouter
+    # name) are reported with a clear per-id error and the harness keeps
+    # going on the well-formed ids. We never silently drop a bad id.
+    clean_models, bad_models = validate_model_ids(args.models)
+    if bad_models:
+        for bad in bad_models:
+            print(f"  MODEL ERROR: malformed OpenRouter id {bad!r} "
+                  f"(expected '<provider>/<model>'); skipping this cell only.",
+                  file=sys.stderr)
+    if not clean_models:
+        print("ERROR: no well-formed model ids remain after validation; abort.",
+              file=sys.stderr)
+        return 2
+
+    # opencode auth.json stores each provider as `{"type": "api", "key": "..."}`;
+    # the v2.2 code mistakenly read the outer dict (which OpenAI rejected
+    # as a malformed key). v2.4 digs one level deeper. Key is a local var;
+    # it is never logged.
+    auth_entry = json.load(open(AUTH))[_AUTH_KEY]
+    if isinstance(auth_entry, dict):
+        key = auth_entry["key"]
+    else:
+        key = auth_entry
     from openai import OpenAI
     from agentdojo.agent_pipeline import (
         AgentPipeline, SystemMessage, InitQuery, OpenAILLM, ToolsExecutionLoop,
@@ -168,11 +330,13 @@ def main() -> int:
     iids = list(suite.injection_tasks.keys())[: args.injection_tasks]
     benign_uids = list(suite.user_tasks.keys())[: args.benign]
 
-    print(f"suite={args.suite} models={args.models}")
+    print(f"suite={args.suite} models={clean_models}")
+    if bad_models:
+        print(f"  (skipped malformed ids: {bad_models})")
     print(f"grid: user_tasks={uids} injection_tasks={iids} benign={benign_uids}")
-    print(f"token cap={args.cap}")
+    print(f"token cap={args.cap}  cap-per-pair={pair_cap}")
 
-    def make_counting_client(model):
+    def make_counting_client(model, pair_budget):
         client = OpenAI(base_url=BASE_URL, api_key=key)
         _orig = client.chat.completions.create
 
@@ -191,9 +355,11 @@ def main() -> int:
                 raise
             tot = getattr(getattr(r, "usage", None), "total_tokens", 0) or 0
             budget.add(tot)
+            pair_budget.add(tot)  # may raise PairBudgetExceeded
             proof.write(json.dumps({
                 "model": model, "status": status, "http": 200,
-                "total_tokens": tot, "cum_tokens": budget.total,
+                "total_tokens": tot,
+                "cum_tokens": budget.total, "pair_tokens": pair_budget.total,
                 "ms": int((time.time() - t0) * 1000),
             }) + "\n")
             proof.flush()
@@ -222,18 +388,24 @@ def main() -> int:
         return messages, sec
 
     captured = {}  # model -> list of records
+    per_pair = {}  # (model, suite) -> {tokens, calls, cap_hit, cap}
     aborted = False
-    for model in args.models:
+    for model in clean_models:
         if aborted:
             break
-        client = make_counting_client(model)
+        # Each model is its own (model, suite) pair in the v2.2 single-suite
+        # harness; the per-pair cap tracks the spend of THIS model on THIS
+        # suite. When B-1 promotes to a multi-suite grid, the pair key
+        # becomes (model, suite) and pair_budget is reset per (model, suite).
+        pair_budget = PairBudget(pair_cap, model, args.suite)
+        client = make_counting_client(model, pair_budget)
         pipeline = build_pipeline(
             client, model, OpenAILLM, AgentPipeline, SystemMessage, InitQuery,
             ToolsExecutionLoop, ToolsExecutor, load_system_message,
         )
         attack = load_attack(ATTACK, suite, pipeline)
         recs = []
-        print(f"\n=== MODEL {model} ===")
+        print(f"\n=== MODEL {model} (cap-per-pair={pair_cap}) ===")
         try:
             # attacked grid
             for uid in uids:
@@ -243,6 +415,12 @@ def main() -> int:
                     injections = attack.attack(ut, it)
                     try:
                         messages, sec = run_one(pipeline, ut, it, injections)
+                    except PairBudgetExceeded as e:
+                        per_pair[(model, args.suite)] = {
+                            "tokens": e.pair_total, "cap": e.cap, "cap_hit": True,
+                            "kind": "hard_stop_on_per_pair_cap",
+                        }
+                        raise
                     except BudgetExceeded:
                         raise
                     except Exception as e:
@@ -261,6 +439,12 @@ def main() -> int:
                 ut = suite.user_tasks[uid]
                 try:
                     messages, _ = run_one(pipeline, ut, None, {})
+                except PairBudgetExceeded as e:
+                    per_pair[(model, args.suite)] = {
+                        "tokens": e.pair_total, "cap": e.cap, "cap_hit": True,
+                        "kind": "hard_stop_on_per_pair_cap",
+                    }
+                    raise
                 except BudgetExceeded:
                     raise
                 except Exception as e:
@@ -271,21 +455,48 @@ def main() -> int:
                     "security": None, "messages": serialize_messages(messages),
                 })
                 print(f"  benign {uid}: done (cum_tokens={budget.total})")
+        except PairBudgetExceeded as e:
+            print(f"\n!!! HARD-STOP (per-pair cap): {e}")
+            # Remaining (model, suite) pairs are not attempted.
+            remaining = [m for m in clean_models
+                         if (m, args.suite) not in per_pair
+                         and m not in captured]
+            for m in remaining:
+                per_pair[(m, args.suite)] = {
+                    "tokens": 0, "cap": pair_cap, "cap_hit": False,
+                    "kind": "not_attempted_due_to_prior_cap_hit",
+                }
         except BudgetExceeded as e:
             aborted = True
-            print(f"\n!!! HARD-ABORT (budget): {e}")
+            print(f"\n!!! HARD-ABORT (global budget): {e}")
         finally:
             captured[model] = recs
+            # Record this pair's outcome if we didn't already (e.g. finished
+            # without hitting the per-pair cap).
+            if (model, args.suite) not in per_pair:
+                per_pair[(model, args.suite)] = {
+                    "tokens": pair_budget.total, "calls": pair_budget.calls,
+                    "cap": pair_cap, "cap_hit": False, "kind": "completed",
+                }
             # persist whatever we have for this model immediately
             with open(os.path.join(OUT_DIR, f"traces-{model.replace('/', '_')}.json"), "w") as f:
                 json.dump({"model": model, "suite": args.suite, "attack": ATTACK,
-                           "benchmark": BENCH, "records": recs}, f, indent=2)
+                           "benchmark": BENCH, "records": recs,
+                           "cap_per_pair": pair_cap,
+                           "pair_tokens": pair_budget.total,
+                           "cap_hit": pair_budget.total > (pair_cap or float("inf"))}, f, indent=2)
 
     proof.close()
+    per_pair_serializable = {
+        f"{m}|{s}": v for (m, s), v in per_pair.items()
+    }
     summary = {
         "suite": args.suite, "attack": ATTACK, "benchmark": BENCH,
-        "models": args.models, "aborted_on_budget": aborted,
+        "models": clean_models, "skipped_models": bad_models,
+        "aborted_on_budget": aborted,
         "cumulative_tokens": budget.total, "api_calls": budget.calls, "cap": args.cap,
+        "cap_per_pair": pair_cap,
+        "per_pair": per_pair_serializable,
         "per_model_records": {m: len(r) for m, r in captured.items()},
     }
     json.dump(summary, open(os.path.join(OUT_DIR, "run-summary.json"), "w"), indent=2)

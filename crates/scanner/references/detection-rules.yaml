@@ -764,3 +764,90 @@ rules:
       # legit IBAN only → recipient does NOT match (the rule does NOT fire on
       # the legit-only trajectory, because the legit IBAN is not in the source).
       require_value_from_source: ["recipient", "amount"]
+
+  # --- v2.4 S2 (ADR-9, US-004) — AST-only SHELL rules ---
+  #
+  # These four rules are SHIPPED behind `parse_ast: true` and the
+  # `shell-ast` Cargo feature. With the S1 default build, the `shell-ast`
+  # feature is OFF and the AST module is `#[cfg]`-gated out of the
+  # production binary, so these rules do not compile into the runtime —
+  # the report is byte-identical to v2.3.
+  #
+  # With `cargo build --features shell-ast`, the S2 AST path is available.
+  # Each AGT-SHL-*-A rule is an AST-only rule: it fires when the S2 parser
+  # produces an AST containing the named construct ANYWHERE in the tree.
+  # The `binary`/`all_flags` fields are kept for DSL shape continuity but
+  # are NOT consulted by the AST matcher — the rule fires on the AST shape
+  # alone.
+  #
+  # The four S2 constructs from `docs/grammar/posix-shell-v2.4-subset.md`
+  # §2.1 are exercised: Pipeline, Subshell, CommandSubstitution, Heredoc.
+  #
+  # `signals: []` mirrors the AGT-MIS-004 shell-rule shape (a shell rule,
+  # like taint, has zero single-action signals). The matcher is the
+  # AST-only pass in `matching::match_shell_ast_only`, gated on the
+  # `shell-ast` feature.
+
+  - agt_code: "AGT-SHL-PIPELINE-A"
+    name: "Shell Pipeline (AST-only)"
+    severity: 8
+    signals: []
+    djl_rules: ["DJL-MIS-001"]
+    maps_to_controls: ["SP800-53:SI-7", "EU-AI-ACT:Art-9", "ISO27001:A.12.1"]
+    asi_xref: ["ASI02", "ASI05"]
+    atlas_xref: ["AML.T0053"]
+    default_confidence: 0.8
+    citation: "docs/grammar/posix-shell-v2.4-subset.md:2.1"
+    shell:
+      binary: "any"
+      all_flags: []
+      parse_ast: true
+      ast_only_constructs: ["Pipeline"]
+
+  - agt_code: "AGT-SHL-SUBSHELL-A"
+    name: "Shell Subshell (AST-only)"
+    severity: 8
+    signals: []
+    djl_rules: ["DJL-MIS-001"]
+    maps_to_controls: ["SP800-53:SI-7", "EU-AI-ACT:Art-9", "ISO27001:A.12.1"]
+    asi_xref: ["ASI02", "ASI05"]
+    atlas_xref: ["AML.T0053"]
+    default_confidence: 0.8
+    citation: "docs/grammar/posix-shell-v2.4-subset.md:2.1"
+    shell:
+      binary: "any"
+      all_flags: []
+      parse_ast: true
+      ast_only_constructs: ["Subshell"]
+
+  - agt_code: "AGT-SHL-COMMANDSUBST-A"
+    name: "Shell Command Substitution (AST-only)"
+    severity: 9
+    signals: []
+    djl_rules: ["DJL-MIS-001"]
+    maps_to_controls: ["SP800-53:SI-7", "EU-AI-ACT:Art-9", "ISO27001:A.12.1"]
+    asi_xref: ["ASI02", "ASI05"]
+    atlas_xref: ["AML.T0053"]
+    default_confidence: 0.85
+    citation: "docs/grammar/posix-shell-v2.4-subset.md:2.1"
+    shell:
+      binary: "any"
+      all_flags: []
+      parse_ast: true
+      ast_only_constructs: ["CommandSubstitution"]
+
+  - agt_code: "AGT-SHL-HEREDOC-A"
+    name: "Shell Heredoc (AST-only)"
+    severity: 9
+    signals: []
+    djl_rules: ["DJL-MIS-001"]
+    maps_to_controls: ["SP800-53:SI-7", "EU-AI-ACT:Art-9", "ISO27001:A.12.1"]
+    asi_xref: ["ASI02", "ASI05"]
+    atlas_xref: ["AML.T0053"]
+    default_confidence: 0.85
+    citation: "docs/grammar/posix-shell-v2.4-subset.md:2.1"
+    shell:
+      binary: "any"
+      all_flags: []
+      parse_ast: true
+      ast_only_constructs: ["Heredoc"]
