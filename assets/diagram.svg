@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" width="800" height="500">
+  <title>Compliance — framework by finding type matrix</title>
+  <defs>
+    <style>
+      .lbl{font-family:system-ui,-apple-system,Segoe UI,sans-serif;letter-spacing:.04em}
+      .m{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    </style>
+  </defs>
+  <rect width="800" height="500" fill="oklch(8% 0.01 260)"/>
+  <rect x="0" y="0" width="2" height="500" fill="oklch(65% 0.21 320)"/>
+  <text x="32" y="44" class="lbl" font-size="20" font-weight="700" fill="oklch(95% 0.01 95)">Compliance — framework × finding type</text>
+  <text x="32" y="64" class="m" font-size="12" fill="oklch(75% 0.21 320)">evidence per finding  ·  trace step → tool call → file</text>
+  <line x1="32" y1="80" x2="768" y2="80" stroke="oklch(28% 0.01 260)" stroke-width="1"/>
+  <g transform="translate(220,110)">
+    <g class="m" font-size="11" fill="oklch(75% 0.21 320)">
+      <text x="0" y="0">framework ↓  /  finding →</text>
+    </g>
+    <g class="lbl" font-size="11" font-weight="700" fill="oklch(95% 0.01 95)">
+      <text x="120" y="0">prompt-inj</text>
+      <text x="240" y="0">exfil</text>
+      <text x="360" y="0">policy-viol</text>
+    </g>
+  </g>
+  <g transform="translate(220,140)">
+    <g>
+      <text x="-10" y="22" class="lbl" font-size="12" font-weight="700" fill="oklch(95% 0.01 95)" text-anchor="end">OWASP-Agentic</text>
+      <g transform="translate(120,8)">
+        <circle cx="14" cy="14" r="9" fill="oklch(65% 0.22 25)"/>
+        <text x="14" y="18" class="m" font-size="9" fill="oklch(8% 0.01 260)" text-anchor="middle" font-weight="700">H</text>
+      </g>
+      <g transform="translate(240,8)">
+        <circle cx="14" cy="14" r="7" fill="oklch(75% 0.16 55)"/>
+        <text x="14" y="18" class="m" font-size="9" fill="oklch(8% 0.01 260)" text-anchor="middle" font-weight="700">M</text>
+      </g>
+      <g transform="translate(360,8)">
+        <circle cx="14" cy="14" r="5" fill="oklch(72% 0.18 145)"/>
+        <text x="14" y="18" class="m" font-size="9" fill="oklch(8% 0.01 260)" text-anchor="middle" font-weight="700">L</text>
+      </g>
+    </g>
+    <g transform="translate(0,46)">
+      <text x="-10" y="22" class="lbl" font-size="12" font-weight="700" fill="oklch(95% 0.01 95)" text-anchor="end">NIST AI RMF</text>
+      <g transform="translate(120,8)">
+        <circle cx="14" cy="14" r="7" fill="oklch(75% 0.16 55)"/>
+        <text x="14" y="18" class="m" font-size="9" fill="oklch(8% 0.01 260)" text-anchor="middle" font-weight="700">M</text>
+      </g>
+      <g transform="translate(240,8)">
+        <circle cx="14" cy="14" r="9" fill="oklch(65% 0.22 25)"/>
+        <text x="14" y="18" class="m" font-size="9" fill="oklch(8% 0.01 260)" text-anchor="middle" font-weight="700">H</text>
+      </g>
+      <g transform="translate(360,8)">
+        <rect x="0" y="0" width="28" height="28" rx="4" fill="none" stroke="oklch(28% 0.01 260)" stroke-width="1" stroke-dasharray="3 3"/>
+      </g>
+    </g>
+    <g transform="translate(0,92)">
+      <text x="-10" y="22" class="lbl" font-size="12" font-weight="700" fill="oklch(95% 0.01 95)" text-anchor="end">ISO/IEC 42001</text>
+      <g transform="translate(120,8)">
+        <rect x="0" y="0" width="28" height="28" rx="4" fill="none" stroke="oklch(28% 0.01 260)" stroke-width="1" stroke-dasharray="3 3"/>
+      </g>
+      <g transform="translate(240,8)">
+        <circle cx="14" cy="14" r="5" fill="oklch(72% 0.18 145)"/>
+        <text x="14" y="18" class="m" font-size="9" fill="oklch(8% 0.01 260)" text-anchor="middle" font-weight="700">L</text>
+      </g>
+      <g transform="translate(360,8)">
+        <circle cx="14" cy="14" r="7" fill="oklch(75% 0.16 55)"/>
+        <text x="14" y="18" class="m" font-size="9" fill="oklch(8% 0.01 260)" text-anchor="middle" font-weight="700">M</text>
+      </g>
+    </g>
+  </g>
+  <g transform="translate(40,290)">
+    <rect width="720" height="156" rx="8" fill="oklch(14% 0.01 260)" stroke="oklch(65% 0.21 320)" stroke-width="1.5"/>
+    <text x="14" y="22" class="m" font-size="11" fill="oklch(75% 0.21 320)">human review  ·  finding F-2026-0417-09</text>
+    <g class="m" font-size="11" fill="oklch(80% 0.01 95)">
+      <text x="14" y="46">trace  planner-3.step(17) → tool(mcp.call)</text>
+      <text x="14" y="64" fill="oklch(75% 0.21 320)">tool_call  codesearch.search  pattern="\$\(echo cm0g\) /etc/*"</text>
+      <text x="14" y="82" fill="oklch(75% 0.21 320)">evidence  src/agent/planner.rs:412  intent  exfil</text>
+      <text x="14" y="100" fill="oklch(60% 0.01 95)">cited  NIST AI RMF · MEASURE 2.5  /  OWASP-Agentic · ASI-04</text>
+      <text x="14" y="118" fill="oklch(60% 0.01 95)">remediation  planner-3 → quarantine · review@human</text>
+      <text x="14" y="136" fill="oklch(72% 0.18 145)">status    awaiting reviewer signature</text>
+    </g>
+  </g>
+  <text x="32" y="478" class="m" font-size="11" fill="oklch(60% 0.01 95)">APOHARA / compliance</text>
+</svg>
