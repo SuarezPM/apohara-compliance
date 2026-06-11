@@ -1162,3 +1162,172 @@ fn agt_trj_finbot_is_a_negative_control() {
         assert!(trj.is_empty(), "finbot live capture must also fire zero AGT-TRJ; got {trj:?}");
     }
 }
+
+// --- v2.4 S2 (ADR-9, US-004) — AST-only SHELL fixtures ----------------------
+//
+// These tests are the integration counterpart to `crates/scanner/src/shell/
+// match_.rs::tests`. They drive the COMPILED BINARY over `--kind session:Bash.input`
+// actions containing the four S2 AST constructs and assert that the
+// AGT-SHL-*-A rules fire.
+//
+// The tests are feature-gated on `shell-ast`: with the S1 default build
+// (`--no-default-features`) the AGT-SHL-*-A rules are byte-identical no-ops
+// (their AST module is `#[cfg]`-gated out). With `--features shell-ast`
+// compiled in, the AST matcher runs and the rules fire on the four
+// construct-only fixtures.
+//
+// Each test inverts the design contract: a CONSTRUCT-MATCHING fixture fires
+// its rule; a NON-CONSTRUCT fixture does NOT fire its rule.
+
+/// Drive the binary with a single `--kind` action. Returns the set of AGT-*
+/// ids that fired.
+fn scan_action_ids(action: &str) -> std::collections::BTreeSet<String> {
+    let (stdout, _stderr, ok) = run(&["scan-action", action, "--kind", "session:Bash.input", "--format", "json"]);
+    assert!(ok, "scan-action should exit 0; stdout={stdout}");
+    let v: Value = serde_json::from_str(&stdout).expect("valid JSON");
+    v["findings"]
+        .as_array()
+        .expect("findings array")
+        .iter()
+        .filter_map(|f| f["id"].as_str().map(String::from))
+        .collect()
+}
+
+#[cfg(feature = "shell-ast")]
+#[test]
+fn s2_pipeline_fixture_fires_shl_pipeline_a_and_not_others() {
+    // v2.4 S2 (ADR-9, US-004): a pipeline-only command fires AGT-SHL-PIPELINE-A
+    // (and only that rule). Subshell / CommandSubstitution / Heredoc rules do
+    // NOT fire on a plain pipeline.
+    let ids = scan_action_ids("rm -rf / | cat");
+    assert!(
+        ids.contains("AGT-SHL-PIPELINE-A"),
+        "AGT-SHL-PIPELINE-A must fire on a pipeline; got {ids:?}"
+    );
+    assert!(
+        !ids.contains("AGT-SHL-SUBSHELL-A"),
+        "AGT-SHL-SUBSHELL-A must NOT fire on a plain pipeline; got {ids:?}"
+    );
+    assert!(
+        !ids.contains("AGT-SHL-COMMANDSUBST-A"),
+        "AGT-SHL-COMMANDSUBST-A must NOT fire on a plain pipeline; got {ids:?}"
+    );
+    assert!(
+        !ids.contains("AGT-SHL-HEREDOC-A"),
+        "AGT-SHL-HEREDOC-A must NOT fire on a plain pipeline; got {ids:?}"
+    );
+}
+
+#[cfg(feature = "shell-ast")]
+#[test]
+fn s2_subshell_fixture_fires_shl_subshell_a() {
+    // Subshell-only: `(rm -rf /)`. The S2 parser sees Subshell wrapping a
+    // Simple, so AGT-SHL-SUBSHELL-A fires.
+    let ids = scan_action_ids("(rm -rf /)");
+    assert!(
+        ids.contains("AGT-SHL-SUBSHELL-A"),
+        "AGT-SHL-SUBSHELL-A must fire on a subshell; got {ids:?}"
+    );
+    assert!(
+        !ids.contains("AGT-SHL-PIPELINE-A"),
+        "subshell-only must NOT also fire the pipeline rule; got {ids:?}"
+    );
+}
+
+#[cfg(feature = "shell-ast")]
+#[test]
+fn s2_command_substitution_fixture_fires_shl_commandsubst_a() {
+    // Dollar-form command substitution: `$(rm -rf /)`. The S2 parser sees a
+    // CommandSubstitution wrapping a Simple, so AGT-SHL-COMMANDSUBST-A fires.
+    let ids = scan_action_ids("$(rm -rf /)");
+    assert!(
+        ids.contains("AGT-SHL-COMMANDSUBST-A"),
+        "AGT-SHL-COMMANDSUBST-A must fire on $(...); got {ids:?}"
+    );
+    assert!(
+        !ids.contains("AGT-SHL-SUBSHELL-A"),
+        "command substitution must NOT also fire the subshell rule; got {ids:?}"
+    );
+}
+
+#[cfg(feature = "shell-ast")]
+#[test]
+fn s2_backtick_command_substitution_fixture_fires_shl_commandsubst_a() {
+    // Backtick form: `` `rm -rf /` `` — same rule fires (the matcher treats
+    // DollarParen and Backtick as the same construct).
+    let ids = scan_action_ids("`rm -rf /`");
+    assert!(
+        ids.contains("AGT-SHL-COMMANDSUBST-A"),
+        "AGT-SHL-COMMANDSUBST-A must fire on backtick form; got {ids:?}"
+    );
+}
+
+#[cfg(feature = "shell-ast")]
+#[test]
+fn s2_heredoc_fixture_fires_shl_heredoc_a() {
+    // Heredoc with body: `cat <<EOF\nhello\nEOF`. The S2 parser captures the
+    // heredoc body, so AGT-SHL-HEREDOC-A fires.
+    let input = "cat <<EOF\nhello\nEOF";
+    let ids = scan_action_ids(input);
+    assert!(
+        ids.contains("AGT-SHL-HEREDOC-A"),
+        "AGT-SHL-HEREDOC-A must fire on a heredoc; got {ids:?}"
+    );
+    assert!(
+        !ids.contains("AGT-SHL-PIPELINE-A"),
+        "heredoc-only must NOT also fire the pipeline rule; got {ids:?}"
+    );
+}
+
+#[cfg(feature = "shell-ast")]
+#[test]
+fn s2_fallback_on_unbalanced_quote_does_not_panic() {
+    // Deliberately-broken input → ParseError → silent S1 fallback → no panic,
+    // no AGT-SHL-*-A finding (the AST-only rules have no S1 fallback shape).
+    // We also confirm the binary still exits 0 (no panic propagated).
+    let (stdout, _stderr, ok) = run(&[
+        "scan-action",
+        "rm -rf 'unclosed",
+        "--kind",
+        "session:Bash.input",
+        "--format",
+        "json",
+    ]);
+    assert!(ok, "scan-action must not panic on unbalanced quote");
+    let v: Value = serde_json::from_str(&stdout).expect("valid JSON");
+    let shl_a: Vec<&str> = v["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|f| f["id"].as_str())
+        .filter(|id| id.starts_with("AGT-SHL-") && id.ends_with("-A"))
+        .collect();
+    assert!(
+        shl_a.is_empty(),
+        "ParseError must not emit AST-only findings; got {shl_a:?}"
+    );
+}
+
+#[cfg(feature = "shell-ast")]
+#[test]
+fn s2_pipeline_rule_does_not_fire_on_plain_simple_command() {
+    // AGT-SHL-PIPELINE-A must NOT fire on `rm -rf /` (plain Simple, no
+    // pipeline). This is the S2 parity contract.
+    let ids = scan_action_ids("rm -rf /");
+    assert!(
+        !ids.contains("AGT-SHL-PIPELINE-A"),
+        "pipeline rule must not fire on plain rm -rf; got {ids:?}"
+    );
+    assert!(
+        !ids.contains("AGT-SHL-SUBSHELL-A"),
+        "subshell rule must not fire on plain rm -rf; got {ids:?}"
+    );
+    assert!(
+        !ids.contains("AGT-SHL-COMMANDSUBST-A"),
+        "command-substitution rule must not fire on plain rm -rf; got {ids:?}"
+    );
+    assert!(
+        !ids.contains("AGT-SHL-HEREDOC-A"),
+        "heredoc rule must not fire on plain rm -rf; got {ids:?}"
+    );
+}

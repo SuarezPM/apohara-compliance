@@ -241,6 +241,21 @@ pub struct DetectionRule {
 /// spacing / short-bundling evasions a literal-substring family regex misses
 /// (`rm -r -f -v`, `rm  --force  --recursive`, `rm -frv`). It is a CANDIDATE
 /// (never proven destructive); `is_candidate` is forced true via `build_finding`.
+///
+/// v2.4 S2 (ADR-9, US-004): two OPT-IN fields wire the S2 AST path through the
+/// S1 matcher's surface. Both default to a no-op so existing YAML rules
+/// (AGT-MIS-004 et al.) deserialize byte-identically to v2.3:
+///   * `parse_ast: bool` (default `false`) — the circuit breaker. When `true`,
+///     the matcher FIRST attempts the S2 AST path; on `ParseError` it falls
+///     back to S1 silently + logs at `trace` level. When `false` (the default),
+///     the matcher is byte-identical to v2.3 — the AST is never even attempted.
+///   * `ast_only_constructs: Vec<String>` (default `[]`) — when NON-empty, the
+///     rule is a PURELY-AST rule and the S1 path is skipped: the rule fires if
+///     (and only if) the S2 AST contains at least one of the named constructs
+///     (e.g. `["Pipeline"]`, `["Subshell"]`). `parse_ast: true` is implied.
+///     The `#[serde(default)]` on both fields is what carries the v2.3 → v2.4
+///     transition: every existing shell rule without these fields behaves
+///     exactly as v2.3.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 pub struct ShellRule {
@@ -259,6 +274,22 @@ pub struct ShellRule {
     /// candidate is SUPPRESSED (e.g. `--dry-run`, `echo `). Empty = nothing denies.
     #[serde(default)]
     pub deny_context: Vec<String>,
+    /// v2.4 S2 (ADR-9): opt-in AST consumption. Default `false` (S1 byte-identical).
+    /// When `true`, the matcher attempts the S2 AST path first; on `ParseError` it
+    /// silently falls back to S1. Requires Cargo feature `shell-ast` to have any
+    /// effect — with the feature off, the field is harmless (the AST module is
+    /// `#[cfg]`-gated out and the `ast` parameter at the call site is always `None`).
+    #[serde(default)]
+    pub parse_ast: bool,
+    /// v2.4 S2 (ADR-9): AST-only constructs the rule wants to match on (e.g.
+    /// `["Pipeline"]`, `["Subshell"]`, `["CommandSubstitution"]`, `["Heredoc"]`).
+    /// When NON-empty, the rule is a PURELY-AST rule: S1 is skipped, the rule
+    /// fires iff the S2 AST contains at least one of the named constructs
+    /// ANYWHERE in the tree (including inside a subshell or substitution).
+    /// Default `[]` (S1 byte-identical). Unknown tags are silently ignored,
+    /// keeping the matcher forward-compatible with future constructs.
+    #[serde(default)]
+    pub ast_only_constructs: Vec<String>,
 }
 
 /// A forward-correlated taint rule (ADR-4): a `taint_source` action (untrusted-data
@@ -714,10 +745,12 @@ mod tests {
         assert_eq!(data.detection.schema_version, SCHEMA_VERSION);
         assert_eq!(
             data.detection.rules.len(),
-            27,
-            "27 AGT-* rules expected (19 single-action + AGT-MIS-004 shell (ADR-5 S1) + \
+            31,
+            "31 AGT-* rules expected (19 single-action + AGT-MIS-004 shell (ADR-5 S1) + \
              AGT-MEM-001 sequence (ADR-2) + AGT-TRJ-001/002/003 taint rules (ADR-4) + \
-             AGT-TRJ-001/002/003-P provenance-gated taint variants (ADR-7 / v2.3))"
+             AGT-TRJ-001/002/003-P provenance-gated taint variants (ADR-7 / v2.3) + \
+             AGT-SHL-PIPELINE-A / -SUBSHELL-A / -COMMANDSUBST-A / -HEREDOC-A \
+             AST-only rules (ADR-9 / v2.4 / US-004))"
         );
         assert_eq!(data.asi.risks.len(), 10, "ASI01..ASI10");
         assert_eq!(data.controls.controls.len(), 49, "49 controls");

@@ -14,6 +14,18 @@ categories = ["command-line-utilities", "development-tools"]
 name = "apohara-compliance-scanner"
 path = "src/main.rs"
 
+# v2.4 S2 shell AST (ADR-9). Default off → S1 byte-identical to v2.3.
+# The `shell-ast` feature gates the new `crates/scanner/src/shell/` module
+# (hand-rolled recursive-descent parser, in-tree, zero new transitive deps).
+# The per-rule `parse_ast: bool` field on `ShellRule` is the load-bearing
+# circuit breaker (introduced in US-004); `#[serde(default)]` on the field
+# keeps existing rules byte-identical to v2.3.
+# See docs/adr/ADR-9-posix-shell-parser-ativo.md and
+# docs/grammar/posix-shell-v2.4-subset.md.
+[features]
+default = []
+shell-ast = []
+
 [dependencies]
 # US-003 (rules engine): serde + a maintained serde_yaml fork for the YAML rule
 # files, serde_json for the own-JSON report, clap for the CLI surface.

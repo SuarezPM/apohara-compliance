@@ -103,7 +103,7 @@ struct RuleEngine {
     contexts: Vec<CompiledContext>,
     sequences: Vec<crate::sequence::CompiledSequence>,
     taints: Vec<crate::taint::CompiledTaint>,
-    shells: Vec<crate::shell::CompiledShell>,
+    shells: Vec<crate::shell_s1::CompiledShell>,
 }
 
 /// Build a case-insensitive regex for one literal signal, applying `\b` ONLY at
@@ -179,7 +179,7 @@ fn compile_rules(rules: &RuleData) -> RuleEngine {
         } else if let Some(shell) = &rule.shell {
             // ADR-5 (S1): a shell rule has ZERO single-action signals (like taint) —
             // it is handled by the separate `shell.rs` pass appended after taints.
-            shells.push(crate::shell::compile_shell(agt_index, &rule.agt_code, shell));
+            shells.push(crate::shell_s1::compile_shell(agt_index, &rule.agt_code, shell));
         } else {
             for signal in &rule.signals {
                 signals.push(CompiledSignal {
@@ -396,9 +396,47 @@ pub fn match_actions_with_suppress(
     // rule is loaded (engine.shells is empty), so the single-action + sequence +
     // taint output stays byte-identical. Shell findings append at the tail,
     // preserving prior finding order.
-    crate::shell::match_shell(
+    //
+    // v2.4 S2 (ADR-9, US-004): the 7th parameter `ast: Option<&Command>` exists
+    // only with the `shell-ast` Cargo feature ON. With the feature OFF (the
+    // default) the S1 signature is unchanged and the call below passes 6 args,
+    // byte-identical to v2.3. The AST-only rules (`AGT-SHL-*-A`, with non-empty
+    // `ast_only_constructs`) are driven by a SEPARATE loop below —
+    // `match_shell_ast_only` — which the S1 loop never sees. This keeps the
+    // three-mechanism safety split.
+    #[cfg(feature = "shell-ast")]
+    crate::shell_s1::match_shell(
         actions,
         &engine.shells,
+        rules,
+        suppress,
+        &mut findings,
+        &mut suppressed,
+        None,
+    );
+    #[cfg(not(feature = "shell-ast"))]
+    crate::shell_s1::match_shell(
+        actions,
+        &engine.shells,
+        rules,
+        suppress,
+        &mut findings,
+        &mut suppressed,
+    );
+
+    // v2.4 S2 (ADR-9, US-004): the AST-ONLY SHELL pass. Runs AFTER S1 (so
+    // byte-identical S1 findings are unchanged in ordering) and APPENDS new
+    // findings for rules that opt into AST-only matching via
+    // `ast_only_constructs`. The S2 path is `#[cfg(feature = "shell-ast")]`-
+    // gated: with the feature off, this is a no-op and the report is
+    // byte-identical to v2.3. With the feature on, every rule whose
+    // `ast_only_constructs` is non-empty fires a candidate iff the S2 AST
+    // contains at least one of the named constructs; on `ParseError` the
+    // fallback is silent and the rule does NOT fire (the S1 path is the
+    // safety net, but AST-only rules have no S1 to fall back to).
+    #[cfg(feature = "shell-ast")]
+    crate::shell_s1::match_shell_ast_only(
+        actions,
         rules,
         suppress,
         &mut findings,

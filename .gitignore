@@ -24,3 +24,12 @@ target/
 # corpus (MIT) under tests/corpus/agentdojo/, and the AgentHarm numbers/IDs-only
 # report (schema-validated) at tests/corpus/agentharm-report.json.
 /eval/
+
+# v2.4 B-0.1 capability probe output (US-006). The probe itself
+# (scripts/eval/probe_open_ended_suites.py) is committed; only its
+# output artifacts are gitignored. The committed deliverables
+# (b0-2-budget.md, b0-3-pablo-decision.md) are TEMPLATES that are
+# version-controlled; the runtime probe results (b0-1-probe-results.md)
+# is the gitignored output.
+scripts/eval/b0-1-probe-results.md
+scripts/eval/__pycache__/

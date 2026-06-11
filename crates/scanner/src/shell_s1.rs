@@ -30,6 +30,9 @@ use crate::rules::{RuleData, ShellRule};
 use crate::suppress::SuppressList;
 use regex::{Regex, RegexBuilder};
 
+#[cfg(feature = "shell-ast")]
+use crate::shell::Command;
+
 /// A compiled [`ShellRule`] (ADR-5 S1). `agt_index` is the positional index into
 /// the FULL `rules.detection.rules[]` (preserved by `compile_rules`, like ADR-2/4).
 pub(crate) struct CompiledShell {
@@ -152,6 +155,18 @@ fn tokenize(command: &str) -> Option<(String, Vec<String>)> {
 /// require/deny context guards over the RAW command. One candidate per (rule,
 /// action). A no-op when no shell rule is loaded (keeps single-action + sequence
 /// + taint output byte-identical).
+///
+/// v2.4 S2 (ADR-9, US-004): the 7th parameter `ast: Option<&Command>` is a
+/// forward-compatibility slot for the S2 AST path. With the `shell-ast` Cargo
+/// feature OFF, the parameter does not exist (the signature is byte-identical
+/// to v2.3 — 6 params, no AST). With the feature ON, the caller may pass the
+/// per-action AST; the S1 body below remains byte-identical to v2.3 and
+/// IGNORES the parameter (the S2 path is driven by the separate
+/// `match_shell_ast_only` loop in `matching.rs`). This keeps the
+/// three-mechanism safety split: `#[serde(default)] parse_ast: bool` carries
+/// the v2.3 compat invariant; `parse_ast: true` is the circuit breaker; the
+/// `shell-ast` feature is the binary-surface control.
+#[cfg_attr(not(feature = "shell-ast"), allow(dead_code))]
 pub(crate) fn match_shell(
     actions: &[ObservedAction],
     shells: &[CompiledShell],
@@ -159,7 +174,18 @@ pub(crate) fn match_shell(
     suppress: &SuppressList,
     findings: &mut Vec<Finding>,
     suppressed: &mut Vec<SuppressedFinding>,
+    #[cfg(feature = "shell-ast")] ast: Option<&Command>,
 ) {
+    // v2.4 S2: S1 is byte-identical to v2.3 — the AST parameter is intentionally
+    // not consulted here. The S2 AST path runs as a separate loop in
+    // `matching.rs` (see `match_shell_ast_only`), which is gated on
+    // `cfg!(feature = "shell-ast")` AND the rule's `ast_only_constructs` being
+    // non-empty. This split keeps the S1 default build zero-regression and the
+    // S2 build additive.
+    #[cfg(feature = "shell-ast")]
+    {
+        let _ = ast; // silence unused warnings; the param is reserved for future S2 wiring.
+    }
     for shell in shells {
         for action in actions {
             // Structural matching applies only to REAL executed commands.
@@ -221,6 +247,112 @@ pub(crate) fn match_shell(
     }
 }
 
+/// v2.4 S2 AST-only pass (ADR-9, US-004).
+///
+/// Iterates the rules ONCE. For each rule whose `ast_only_constructs` is
+/// non-empty, the matcher tries the S2 AST path: parse each `session:Bash`
+/// action's text, call `match_shell_ast(rule.ast_only_constructs, &ast)`,
+/// and on hit, fire a candidate with the rule's `agt_code` (e.g.
+/// `AGT-SHL-PIPELINE-A`).
+///
+/// On `ParseError` the matcher falls back to S1 silently. The fallback is:
+///   * the AST parser is silent about ParseError in the public surface — no
+///     panic, no finding emission from S2;
+///   * a `trace`-level log line is emitted to stderr carrying
+///     `(parse_ast, fallback_to_s1, error_kind)` so an operator can
+///     confirm the fallback happened.
+///   * the rule does NOT fire on the S2 path (an AST-only rule has no S1
+///     fallback shape to consult, so the finding is suppressed entirely).
+///
+/// The whole function is `#[cfg(feature = "shell-ast")]`-gated: with the
+/// feature off (the default), this is a no-op and the report is
+/// byte-identical to v2.3.
+#[cfg(feature = "shell-ast")]
+pub(crate) fn match_shell_ast_only(
+    actions: &[ObservedAction],
+    rules: &RuleData,
+    suppress: &SuppressList,
+    findings: &mut Vec<Finding>,
+    suppressed: &mut Vec<SuppressedFinding>,
+) {
+    use crate::shell;
+    use crate::shell::match_::match_shell_ast;
+
+    for rule in rules.detection.rules.iter() {
+        let Some(shell_rule) = &rule.shell else {
+            continue;
+        };
+        // AST-only rules have non-empty ast_only_constructs. The circuit
+        // breaker (parse_ast: false) is ALSO checked: a rule with
+        // `ast_only_constructs` set but `parse_ast: false` is silently
+        // ignored (defensive — the field-pairing is the contract).
+        if shell_rule.ast_only_constructs.is_empty() || !shell_rule.parse_ast {
+            continue;
+        }
+
+        for action in actions {
+            // AST-only matching applies only to REAL executed commands,
+            // same as S1.
+            if !action.source.starts_with("session:Bash") {
+                continue;
+            }
+
+            // Try the AST. On any error, fall back to S1 silently.
+            let ast = match shell::parse(&action.value) {
+                Ok(ast) => ast,
+                Err(e) => {
+                    eprintln!(
+                        "apohara-compliance-scanner: trace: parse_ast=true \
+                         fallback_to_s1 error_kind={:?} agt_code={} source={}",
+                        e, rule.agt_code, action.source
+                    );
+                    continue;
+                }
+            };
+
+            if !match_shell_ast(&shell_rule.ast_only_constructs, &ast) {
+                continue;
+            }
+
+            // The signal describes the AST construct that fired (audit trail
+            // without echoing the raw command). With one tag in the rule
+            // (the common case), use the tag verbatim. With multiple tags,
+            // use the first one.
+            let signal = shell_rule
+                .ast_only_constructs
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "AST".to_string());
+
+            let finding = build_finding(rule, &signal, rules);
+            if let Some(m) = suppress.matching(&rule.agt_code, &signal, &action.source) {
+                eprintln!(
+                    "apohara-compliance-scanner: suppressed: {} by {}",
+                    rule.agt_code, m.raw
+                );
+                suppressed.push(SuppressedFinding {
+                    finding,
+                    reason: m.reason.clone(),
+                    suppressed_by: m.raw.clone(),
+                    origin: SuppressionOrigin::Allowlist,
+                });
+            } else {
+                eprintln!(
+                    "apohara-compliance-scanner: match: {} ast_only_constructs={:?} in {}",
+                    rule.agt_code, shell_rule.ast_only_constructs, action.source
+                );
+                findings.push(finding);
+            }
+            // One candidate per (rule, action) — first-match-fires + break.
+            // We do NOT break out of the OUTER action loop (a rule with
+            // ast_only_constructs can fire on multiple actions in a stream);
+            // but we DO break out of the rule's action loop after the first
+            // hit, matching S1's per-rule behavior.
+            break;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,6 +366,8 @@ mod tests {
             all_flags: vec!["r".into(), "f".into()],
             require_context: vec![],
             deny_context: vec!["--dry-run".into(), "dry run".into(), "echo ".into()],
+            parse_ast: false,
+            ast_only_constructs: vec![],
         }
     }
 
@@ -243,6 +377,17 @@ mod tests {
         let mut findings = Vec::new();
         let mut suppressed = Vec::new();
         let actions = vec![ObservedAction::new(source, command)];
+        #[cfg(feature = "shell-ast")]
+        match_shell(
+            &actions,
+            &[compiled],
+            &data,
+            &SuppressList::default(),
+            &mut findings,
+            &mut suppressed,
+            None,
+        );
+        #[cfg(not(feature = "shell-ast"))]
         match_shell(
             &actions,
             &[compiled],
