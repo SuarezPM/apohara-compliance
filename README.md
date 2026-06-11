@@ -1,25 +1,45 @@
-<div align="center">
+<p align="center">
+  <img src="assets/banner.svg" alt="APOHARA · Compliance — audit what your AI coding agent did" width="100%">
+</p>
 
 # apohara-compliance
 
 **Audit what your AI coding agent _did_ — not just what your repo _contains_.**
 
+A deterministic Rust scanner that maps an AI coding agent's **observed actions** — or a repository — to compliance and agentic-security framework controls, surfacing **candidate** risks _with citations_ for a human to confirm.
+
 [![CI](https://img.shields.io/github/actions/workflow/status/SuarezPM/apohara-compliance/codeql.yml?style=for-the-badge&label=CI)](https://github.com/SuarezPM/apohara-compliance/actions)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=for-the-badge)](#-license)
 [![Rust](https://img.shields.io/badge/rust-1.74%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/version-2.2.0--local-purple?style=for-the-badge)](https://github.com/SuarezPM/apohara-compliance/releases)
-[![SARIF](https://img.shields.io/badge/output-SARIF%202.1.0-success?style=for-the-badge)](https://sarifweb.azurewebsites.net)
+[![Version](https://img.shields.io/badge/version-2.3.0-purple?style=for-the-badge)](https://github.com/SuarezPM/apohara-compliance/releases)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/SuarezPM/apohara-compliance/badge?style=for-the-badge)](https://scorecard.dev/viewer/?uri=github.com/SuarezPM/apohara-compliance)
 
-**[Quick Start](#-quick-start)** · **[Features](#-features)** · **[Frameworks](#-framework-coverage)** · **[How it works / honesty](#-how-it-works--honesty)** · **[Benchmark](BENCHMARK.md)** · **[Security](SECURITY.md)**
+## Contents
 
-A deterministic Rust scanner that maps an AI coding agent's **observed actions** — or a repository — to compliance and agentic-security framework controls, surfacing **candidate** risks _with citations_ for a human to confirm.
-
-</div>
-
-> **Honesty lineage at a glance.** `main` carries the v1.1 release **plus** the additive v2.0 → v2.1 → v2.2 → v2.3 trajectory/taint work (ADR-4 → ADR-5 → ADR-6 → ADR-7). The latest crates.io / GitHub Release tag is still **v1.1.0** — the v2.x line is shipped on `main` but **not yet tagged/published** (Pablo-gated). Everything v2.x is offline + deterministic + byte-identical to v1.1 on the single-action engine; the additive passes do not change the existing rules. v2.3's -P variants are ADDITIVE, opt-in, byte-identical passthrough when the flag is empty. See **[How it works / honesty](#-how-it-works--honesty)** and **[BENCHMARK.md](BENCHMARK.md)** for the bound triple and the explicit co-headline limit.
+- [What it does](#-what-it-does)
+- [Real output](#-real-output)
+- [What we measured](#-what-we-measured)
+- [Quick start](#-quick-start)
+- [Framework coverage](#-framework-coverage)
+- [How it works](#-how-it-works)
+- [Repository layout](#-repository-layout)
+- [Roadmap](#-roadmap)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ---
+
+## What it does
+
+> Most AI-governance tooling inspects data-at-rest or the model itself. But when an AI coding agent runs `rm -rf`, opens an outbound `curl`, dumps a table, or follows an `act as …` instruction, the risk lives in **what it did** — the exact surface the [OWASP Top 10 for Agentic Applications (2026)](https://genai.owasp.org/) is built around.
+
+`apohara-compliance` reads an AI coding-agent **session transcript** (the newline-delimited JSON record of every tool call it made) — or a repository — and maps the observed signals to framework controls. Each match is a candidate finding carrying the triggering signal, a confidence score, suggested controls, cross-framework references, and a citation (ID, name, version, source URL). A human reviewer decides what is real.
+
+It is, as far as we know, the first developer-tier tool built directly on the OWASP Top 10 for Agentic Applications.
+
+---
+
+## Real output
 
 ```console
 $ apohara-compliance-scanner scan-session session.jsonl --format md
@@ -56,38 +76,25 @@ compliance, certification, or audit conclusions._
 
 ---
 
-## 💡 Concept
+## What we measured
 
-> [!NOTE]
-> **The agent's actions are the attack surface.** Most AI-governance tooling inspects data-at-rest or the model itself. But when an AI coding agent runs `rm -rf`, opens an outbound `curl`, dumps a table, or follows an `act as …` instruction, the risk lives in **what it did** — the exact surface the [OWASP Top 10 for Agentic Applications (2026)](https://genai.owasp.org/) is built around.
+Honesty is the deliverable. Every headline number below is reproducible from a frozen rules SHA, a pre-registered protocol, and a schema-validated report. The ceiling is stated as prominently as the result.
 
-`apohara-compliance` reads an AI coding-agent **session transcript** (the newline-delimited JSON record of every tool call it made) — or a repository — and maps the observed signals to framework controls. Each match is a candidate finding carrying the triggering signal, a confidence score, suggested controls, cross-framework references, and a citation (ID, name, version, source URL). A human reviewer decides what is real.
+| | claim | scope | reference |
+|---|---|---|---|
+| v1.0 | Precision **1.0000** / Recall **1.0000** | 100% synthetic, hand-crafted fixture corpus (precision/recall CI gate floor: 0.85) | [BENCHMARK.md](BENCHMARK.md) |
+| v1.4 | AgentDojo recall **23 / 35 (0.657)** | Static prose rules on the committed AgentDojo corpus (frozen rules SHA `ac88825`) | [ADR-3](docs/adr/ADR-3-independent-corpora-and-prose-rule-coverage.md) |
+| v2.2 | AGT-TRJ detection **169 / 236 (71.6%)** on real AgentDyn successes | Last-gen frontier models, open-ended suites, frozen rules `dcd1ac6`; live current-frontier 0/80 on the standard suite (resisted all) | [ADR-6](docs/adr/ADR-6-real-trajectory-efficacy.md) |
+| v2.2 | Co-headline: **28.7% (659/2295) FP on resisted** + **1.4% (5/352) on benign** | Same corpus; ⇒ precision-on-success ≈ 20% — post-hoc correlation is not a success/causation discriminator | [ADR-6](docs/adr/ADR-6-real-trajectory-efficacy.md) |
+| v2.3 | AGT-TRJ-*-P coverage **100 / 192 (52.1%)** on test positives | Post-hoc substring-match proxy, frozen PREREG SHA `5e62e9e2`; BENIGN FP 0/352, FAILED FP 13.9% (halved vs v2.2) | [ADR-7](docs/adr/ADR-7-argument-value-provenance.md) |
 
-It is, as far as we know, the first developer-tier tool built directly on the OWASP Top 10 for Agentic Applications.
+> **Claim ceiling (verbatim, ADR-6/ADR-7).** *Deterministic, post-hoc, representation-aware injection → consequence candidate correlation surfacer. Mechanism + representation proven on synthetic positives. Post-hoc recognition measured on real successful trajectories. Not efficacy / recall / prevention. Recognisable-in-log ≠ would-have-prevented.*
 
----
-
-## ✨ Features
-
-| | |
-|---|---|
-| 🎯 **Action-level scanning** | Maps an agent's actual tool calls (`scan-session`), not just files at rest. Also scans repositories (`scan-repo`) and OTLP-exported telemetry off disk (`scan-otlp`, offline). |
-| 🧠 **Multi-action sequence** | Beyond single-action signals, an ordered second pass surfaces OWASP **ASI06 (Memory & Context Poisoning)** candidates (`AGT-MEM-001`): untrusted content followed by a write to a memory/RAG sink — candidate-only, never a runtime guarantee. [ADR-2](docs/adr/ADR-2-multi-action-sequence-matching.md) |
-| 🧬 **Trajectory taint-correlation** | A third, additive pass (`AGT-TRJ-001/002/003`) correlates an **injection marker in untrusted data the agent READ** (a `tool-result:` action) with a **later sensitive real-action sink** (exfil / destructive / financial) in the same stream. Post-hoc; recognisable-in-log ≠ would-have-prevented. [ADR-4](docs/adr/ADR-4-trajectory-taint-correlation.md) |
-| 🏷️ **Representation-aware taint** | The v2.1 sink parser emits a reserved `sink:` action carrying canonical role tokens (`recipient=` / `amount=` / `url=` / `command=`, with a `const SINK_GRAMMAR` authority boundary) and the AGT-TRJ rules ship a taxonomy-derived **generic injection-marker** vocabulary. Closes the v2.0 representation gap. [ADR-5](docs/adr/ADR-5-representation-aware-taint-and-evasion-robust-matching.md) |
-| 📊 **Real-trajectory measurement** | The v2.2 eval harness runs the **frozen** rules over real successful indirect-injection trajectories from last-gen frontier models (AgentDyn) and against live current-frontier models (OpenRouter) — bound triple + overlap-miss, no retro-fit. [ADR-6](docs/adr/ADR-6-real-trajectory-efficacy.md) |
-| 🐚 **Structural shell tokenizer** | A `shlex`-backed pass catches flag-reordered destructive commands a substring scan cannot (e.g. `rm -r -f` / `rm -fr` / quoted-arg variants), folded into `AGT-MIS-004`. |
-| 📑 **Cited candidates** | Every finding carries `{id, title, status, confidence, triggering_signal, citation(url+version), suggested_controls, cross_refs}`. No copyrighted framework prose is reproduced. |
-| 🧭 **10-framework crosswalk** | One signal resolves across OWASP Agentic, OWASP LLM, MITRE ATLAS, ISO 42001, EU AI Act, NIST, SOC 2 and ISO 27001 — see the [coverage table](#-framework-coverage). |
-| 🔌 **SARIF 2.1.0 output** | `--format sarif` is CI-ingestible by code scanning. Findings are `note`/`warning` — **never** `error`. A wrapping GitHub Action is included. |
-| 🔍 **Gap analysis** | `gap` lists carried controls with **no** candidate evidence — "no signal observed for X", never "you fail X". |
-| 📉 **Baseline diff** | `--baseline <prior.json> --only-new` reports only new findings via SARIF `baselineState`. |
-| 🎚️ **Tunable + suppressible** | `--min-confidence` / `--min-severity` thresholds and a visible-by-default suppression channel via `.apohara-compliance.toml`. |
-| 🦀 **Offline & deterministic** | Pure Rust, MSRV 1.74. No network, no API keys, no telemetry. Same input ⇒ same bytes out. |
+What is **not** claimed: real-time prevention, success/causation discrimination, efficacy on current-frontier harder suites (blocked by AgentDyn's model registry not carrying current-frontier OpenRouter IDs).
 
 ---
 
-## 🚀 Quick Start
+## Quick start
 
 ```sh
 # 1. Install the scanner (builds from source — lowest-trust path)
@@ -136,7 +143,7 @@ apohara-compliance-scanner scan-repo . --ext rs,py --min-confidence 0.8 \
 
 ---
 
-## 🧭 Framework coverage
+## Framework coverage
 
 Cross-references resolve along the chain **ASI → OWASP-LLM → ATLAS → ISO 42001 → EU AI Act**, with NIST and audit-standard controls hanging off each node.
 
@@ -155,16 +162,18 @@ Cross-references resolve along the chain **ASI → OWASP-LLM → ATLAS → ISO 4
 
 ---
 
-## 🔬 How it works / honesty
+## How it works
+
+<p align="center">
+  <img src="assets/diagram.svg" alt="Compliance evidence matrix — 3 frameworks (OWASP-Agentic, NIST AI RMF, ISO/IEC 42001) × 3 finding types (prompt-injection, exfiltration, policy-violation), with a real human-review evidence sample (trace → tool_call → cited)" width="100%">
+</p>
 
 > [!WARNING]
 > **This is a guidance and mapping tool. It is NOT a certification, an audit, or legal advice.** Running it does not make a project "compliant". Every finding is a _candidate_ surfaced for human review — never an assertion that a control is met or violated, and never a substitute for a qualified auditor or counsel.
 
-**Candidates only.** Findings are emitted as SARIF `note`/`warning`, never `error`, and every line is prefixed `CANDIDATE —`. A false positive is a "please confirm", not a wrong verdict.
+The detection engine is built up in additive passes, each documented in its own ADR. The passes are independent and the scanner emits a `CANDIDATE —` line for any of them that fires. **Candidates only.** Findings are emitted as SARIF `note`/`warning`, never `error`, and every line is prefixed `CANDIDATE —`. A false positive is a "please confirm", not a wrong verdict.
 
 **Traceable provenance.** 49 carried controls each trace to a cited source. Each finding records `status: official` or `status: draft`. In particular, NIST `AGENTIC-*` controls are flagged **`draft`** — they derive from a **March-2026 CSA draft profile, not official NIST**, and the scanner says so on every such finding. IDs, names, and versions are cited; no copyrighted framework text is reproduced.
-
-The detection engine is built up in additive passes, each documented in its own ADR. The passes are independent and the scanner emits a `CANDIDATE —` line for any of them that fires.
 
 ### Pass 1 — single-action matching (v1.0)
 
@@ -177,7 +186,6 @@ A regex + word-boundary + context engine matches each observed action against th
 
 The build **fails below precision 0.85**. Full numbers, per-rule breakdown, the reproduction command, and the honest limitations are in **[BENCHMARK.md](BENCHMARK.md)** (the source of record).
 
-> [!NOTE]
 > Those are metrics on a **100% synthetic, hand-crafted fixture corpus** — fixture metrics, not a claim of real-world accuracy. The headline result is the **false-positive reduction** (baseline→tuned delta), not the absolute 1.00. The corpus and the context rules co-evolved, so a perfect tuned score is partly true by construction.
 
 ### Pass 2 — multi-action sequence correlation (v1.1, `AGT-MEM-001`, ASI06)
@@ -190,52 +198,43 @@ The taint engine expresses the **injection → consequence dataflow** the single
 
 A fired AGT-TRJ candidate means **"untrusted-marked data was observed and a sensitive action followed"** — a candidate injection→consequence correlation, **not** a verdict that the agent obeyed the injection. The module is self-contained in `crates/scanner/src/taint.rs` and runs after the single-action and sequence passes in `matching::match_actions_with_suppress`. See [ADR-4](docs/adr/ADR-4-trajectory-taint-correlation.md).
 
-> **Honesty invariant.** Mechanism proven on synthetic positives; live MiniMax-M3 run on AgentDojo banking-suite `important_instructions` was **0 / 10** attack-success (the target refused every injection), so post-hoc detection on real successes is **0 / 0 — undefined** at v2.0. Real-world efficacy is **UNPROVEN at v2.0** (stated plainly in the PREREG + PROOF).
-
 ### Pass 4 — representation-aware taint (v2.1, ADR-5)
 
 v2.1 closes the v2.0 **representation gap**. The parser now emits a reserved `sink:` action carrying a deterministic canonical role string (`recipient=` / `amount=` / `url=` / `command=`, with `const SINK_GRAMMAR` enforcing an authority boundary), and the AGT-TRJ rules gained a **taxonomy-derived generic injection-marker** vocabulary (OWASP ASI02:2026 / AITG-APP-02 / documented IPI canary families — each marker cited in `detection-rules.yaml`). The `sink:` channel is excluded from the single-action loop by a one-line `starts_with("sink:")` guard, so the new representation **cannot** produce a single-action false positive (proven by the C1 FP-safety + C2 grammar-disjointness tests).
 
 Mechanism + representation proven on a synthetic positive: `trj-representation-aware-positive.jsonl` fires AGT-TRJ-001 + AGT-TRJ-003; the FinBot direct-injection fixture (negative control) and the benign-trajectory trap fire **zero**. Pre-registered measurement on the committed AgentDojo corpus (frozen rules SHA `ac88825`, no LLM) confirmed the single-action recall is **unchanged** at **23 / 35 (0.657)** — the v2.1 work added **no** new single-action prose rules. See [ADR-5](docs/adr/ADR-5-representation-aware-taint-and-evasion-robust-matching.md).
 
-> **Honesty invariant.** Mechanism + representation proven on synthetic positives; the AgentDojo committed corpus is **flat bait** (no `tool-result:` → `sink:` dataflow), so it has zero trajectory items to exercise the structured-sink representation on a real trace. Real-world efficacy is **still UNPROVEN at v2.1** (stated plainly).
-
-### Pass 5 — real-trajectory measurement (v2.2, ADR-6) — the bound triple + ceiling
+### Pass 5 — real-trajectory measurement (v2.2, ADR-6)
 
 v2.2 closes the v2.0/v2.1 "real-world efficacy UNPROVEN **by absence of any real trajectory**" gap. The engine is run, with the **same frozen rules** (blob SHA `dcd1ac6`, frozen BEFORE scanning) and the apohara-agnostic `wrap_agentdojo_trace.py` wrapper, over two externally-labeled corpora. The number is reported as a **bound triple** + its representation overlap-miss, and the correlation-not-causation ceiling is stated as a **co-headline of equal prominence**.
 
-**HEADLINE.** apohara v2.1 post-hoc-recognises the injection → sink correlation in **169 / 236 (71.6 %)** of real successful indirect-injection trajectories from last-generation frontier models (AgentDyn open-ended suites). This closes the v2.0 "absence" gap — the mechanism fires on real traces, not only synthetic.
+**HEADLINE.** apohara v2.1 post-hoc-recognises the injection → sink correlation in **169 / 236 (71.6%)** of real successful indirect-injection trajectories from last-generation frontier models (AgentDyn open-ended suites). This closes the v2.0 "absence" gap — the mechanism fires on real traces, not only synthetic.
 
-**CO-HEADLINE LIMIT (equal prominence, never buried).** It ALSO fires on **28.7 % (659 / 2295)** of **resisted** injections and **1.4 % (5 / 352)** of benign traces. apohara is a **candidate injection → consequence correlation surfacer**, NOT a success / causation discriminator: a resisted injection still carries the marker in a tool-result AND the agent still performs a legitimate structured sink, so the marker → sink correlation fires in both succeeded and resisted cases. **precision-on-success ≈ 169 / (169+659+5) = 169/833 ≈ 20 %.** The discriminating signal (did the agent OBEY the injection) is not representable in a deterministic post-hoc text-pattern model — this is the **quantified ceiling**.
-
-**The bound triple — DOWNLOAD corpus** (AgentDyn `@ 5353cf7`, agentdojo 0.1.35, benchmark v1.2.2; attack `important_instructions`; **last-gen** models, date-labeled; open-ended suites; frozen rules `dcd1ac6`):
-
-| | result |
-|---|---|
-| (a) model attack-success-rate (AgentDyn labels, apohara-independent) | gpt-5.1-2025-11-13 **33 / 851** (3.9 %) · gpt-5-mini-2025-08-07 **2 / 560** (0.4 %) · gemini-2.5-pro **122 / 560** (21.8 %) · gemini-2.5-flash **79 / 560** (14.1 %) |
-| (b) apohara post-hoc AGT-TRJ detection on the 236 real successes | **169 / 236 (71.6 %)** — gpt-5.1 25/33 · gpt-5-mini 0/2 · gemini-2.5-pro 89/122 · gemini-2.5-flash 55/79 (AGT-TRJ-001 dominant, AGT-TRJ-003 secondary) |
-| (c) false-positive control | failed-injection (RESISTED) FP **659 / 2295 (28.7 %)** · benign FP **5 / 352 (1.4 %)** ⇒ precision-on-success **169/833 ≈ 20 %** |
+**CO-HEADLINE LIMIT (equal prominence, never buried).** It ALSO fires on **28.7% (659 / 2295)** of **resisted** injections and **1.4% (5 / 352)** of benign traces. apohara is a **candidate injection → consequence correlation surfacer**, NOT a success / causation discriminator: a resisted injection still carries the marker in a tool-result AND the agent still performs a legitimate structured sink, so the marker → sink correlation fires in both succeeded and resisted cases. **precision-on-success ≈ 169 / (169+659+5) = 169/833 ≈ 20%.** The discriminating signal (did the agent OBEY the injection) is not representable in a deterministic post-hoc text-pattern model — this is the **quantified ceiling**.
 
 **Overlap-miss** (model-independent representation coverage of the 236 positives): marker `<information>` covered 232/236; role-mapped structured sink covered 180/236; BOTH 178/236; NEITHER 2/236. Covered sink roles: `url=170, recipient=60, amount=59, command=34`. MISSED arg-keys (OUTSIDE the frozen role map — the `iban`-analog): `path (161), subject (114), otp (87), title (79), body (68), recipients (68), repo_name (54), password (33)`. **Reported as-is, NEVER closed** — adding any of these after seeing traces would convert the number from a **MEASUREMENT** into a **FIT** (forbidden by the pre-registration).
 
-**The bound triple — LIVE current-frontier** (via OpenRouter; suite `workspace`; attack `important_instructions_no_model_name`; same frozen rules + frozen wrapper + release binary; current-frontier models, date-labeled: gpt-5.5, gemini-3.5-flash, gemini-3.1-pro-preview, MiniMax-M3, claude-opus-4.8):
-
-| | result |
-|---|---|
-| (a) attack-success TOTAL | **0 / 80 (0.0 %)** — EACH model 0 / 16 |
-| (b) apohara post-hoc detection on successes | **0 / 0 — UNDEFINED** (no live success to detect on) |
-| (c) false-positive control | failed-injection FP **0 / 80** · benign FP **0 / 15** (the download 28.7 % correlation-FP did **NOT** reproduce on this live set) |
-| real LIVE usage | **224 API calls, all HTTP 200; 698,959 tokens** (smoke + live; under the 1 M cap); key never logged |
-
-> **CAVEAT (stated).** The live run used `suite=workspace` (the standard AgentDojo suite), NOT AgentDyn's harder open-ended suites (shopping / github / dailylife) where last-gen models reached 14–22 % ASR — because the current-frontier OpenRouter IDs are not in AgentDyn's model registry. So the live 0/80 is on the **easier standard suite**; current-frontier behaviour on the harder open-ended attack is **UNMEASURED** (a documented follow-up). The download corpus (last-gen, open-ended) remains the only set with real successes.
-
-> **Claim ceiling (verbatim, ADR-6).** *"deterministic, post-hoc, representation-aware injection → consequence CANDIDATE CORRELATION surfacer; mechanism + representation proven on synthetic positives; post-hoc recognition MEASURED on real successful trajectories (169/236, last-gen open-ended) with an explicit model-independent overlap-miss; ALSO fires on resisted (28.7 %) + benign (1.4 %) — a correlation surfacer, NOT a success / causation discriminator (precision-on-success ≈ 20 %); NOT efficacy / recall / prevention; recognisable-in-log ≠ would-have-prevented."*
+> **CAVEAT (stated).** The live current-frontier run used `suite=workspace` (the standard AgentDojo suite), NOT AgentDyn's harder open-ended suites (shopping / github / dailylife) where last-gen models reached 14–22% ASR — because the current-frontier OpenRouter IDs are not in AgentDyn's model registry. So the live 0/80 is on the **easier standard suite**; current-frontier behaviour on the harder open-ended attack is **UNMEASURED** (a documented follow-up). The download corpus (last-gen, open-ended) remains the only set with real successes.
 
 Pre-registration (`tests/corpus/PREREG-v2.2-real-trajectory.md`, rules frozen at `dcd1ac6` **BEFORE** scanning, verified unchanged) and the schema-validated numbers-only report (`tests/corpus/v2.2-real-trajectory-report.json`) are committed; the AgentDyn trace content is gitignored. See [ADR-6](docs/adr/ADR-6-real-trajectory-efficacy.md) + `PROOF-v2.2-real-trajectory.md`.
 
+### Pass 6 — argument-value provenance (v2.3, ADR-7)
+
+v2.3 attacks the v2.2 **28.7% correlation-FP on resisted** by adding an opt-in **provenance gate** to the AGT-TRJ rules: a `TaintRule.require_value_from_source` field plus three `-P` variants (`AGT-TRJ-001-P`, `AGT-TRJ-002-P`, `AGT-TRJ-003-P`) that fire only when the sink argument's value is **verbatim from the same source channel** that carried the injection marker. This is a **post-hoc causal proxy**, not a runtime causation discriminator: it discriminates "the sink was filled with the same content as the taint source" from "the sink was filled with a structurally similar value". Empty `require_value_from_source` is **byte-identical to v2.2** — opt-in, additive.
+
+**Honest result** on the v2.2 frozen corpus, PREREG SHA `5e62e9e2` UNCHANGED post-scan:
+
+- **TEST positives: 100 / 192 (52.1%)** — a post-hoc substring-match proxy, down from v2.2's 138/192 (71.9%). Lower coverage is the trade for fewer false positives.
+- **BENIGN FP: 0 / 352** — killed all 5 v2.2 benign FP.
+- **FAILED FP: 13.9%** — halved from v2.2's 28.7%.
+
+The 52.1% is **not** a claim of causation: the same correlation-not-causation ceiling holds. What v2.3 buys is **fewer false positives on resisted/benign** at the cost of **fewer positives flagged on test** — the recall/precision trade is explicit in the PREREG and the BENCHMARK, not a retroactive fit.
+
+Pre-registration (`tests/corpus/PREREG-v2.3.md`, frozen BEFORE scanning, verified unchanged post-scan), proof document (`tests/corpus/PROOF-v2.3-argument-value-provenance.md`), and schema-validated report (`tests/corpus/v2.3-argument-value-provenance-report.json`) are committed. See [ADR-7](docs/adr/ADR-7-argument-value-provenance.md).
+
 ---
 
-## 🏗️ Repository layout
+## Repository layout
 
 ```text
 apohara-compliance/
@@ -245,7 +244,7 @@ apohara-compliance/
 │   │   ├── matching.rs                   # regex + word-boundary + context engine (orchestrates the passes)
 │   │   ├── rules.rs                      # rule loading + resolution ladder
 │   │   ├── sequence.rs                   # Pass 2 — multi-action AGT-MEM-001 (ADR-2)
-│   │   ├── taint.rs                      # Pass 3-4 — trajectory taint + representation-aware (ADR-4/5)
+│   │   ├── taint.rs                      # Pass 3-4 — trajectory taint + representation-aware (ADR-4/5) + Pass 6 argument-value provenance (ADR-7, opt-in)
 │   │   ├── shell.rs                      # structural `shlex` shell pass — flag-reorder evasions (v2.1)
 │   │   ├── model.rs                      # the candidate finding + rule data model
 │   │   ├── parse_session.rs              # tolerant NDJSON session-transcript reader
@@ -260,7 +259,7 @@ apohara-compliance/
 │   │   ├── independent_corpus.rs         # AgentDojo / AgentHarm non-gating cross-check (v1.4)
 │   │   └── trajectory_corpus.rs          # v2.0/v2.1 trajectory + AGT-TRJ positive/negative fixtures
 │   └── references/                       # canonical framework rule + crosswalk YAML data
-├── docs/adr/                             # ADR-2 sequence · ADR-3 corpus · ADR-4 taint · ADR-5 repr · ADR-6 efficacy
+├── docs/adr/                             # ADR-2 sequence · ADR-3 corpus · ADR-4 taint · ADR-5 repr · ADR-6 efficacy · ADR-7 provenance
 ├── tests/corpus/                         # synthetic gate + AgentDojo + AgentHarm + v2.x PREREG/PROOF/report
 ├── references/                           # canonical rule + mapping data (mirror, symlinked into the crate)
 ├── skills/                               # installable agent skill
@@ -271,9 +270,9 @@ apohara-compliance/
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
-**Shipped** (on `main`, not all on crates.io/Releases — see badge)
+**Shipped** (on `main`)
 
 - [x] v1.0 — Action-level session scanning (`scan-session`), repo scanning (`scan-repo`), gap analysis (`gap`)
 - [x] v1.0 — SARIF 2.1.0 output + GitHub Action
@@ -287,20 +286,20 @@ apohara-compliance/
 - [x] v1.4 — Independent corpora (AgentDojo + AgentHarm, non-gating) for prose-rule coverage (ADR-3)
 - [x] v2.0 — Trajectory taint-correlation engine (ADR-4): injection → consequence dataflow, post-hoc, offline
 - [x] v2.1 — Representation-aware taint (ADR-5): `sink:` channel + `const SINK_GRAMMAR` role tokens + generic injection-marker vocabulary + structural `shlex` shell pass (AGT-MIS-004)
-- [x] v2.2 — Real-trajectory measurement (ADR-6): bound triple on real AgentDyn successes (169/236) + live current-frontier cross-check (0/80 resisted); HONEST co-headline (28.7 % FP on resisted, ~20 % precision-on-success) — the framing IS the deliverable
+- [x] v2.2 — Real-trajectory measurement (ADR-6): bound triple on real AgentDyn successes (169/236) + live current-frontier cross-check (0/80 resisted); HONEST co-headline (28.7% FP on resisted, ~20% precision-on-success) — the framing IS the deliverable
+- [x] v2.3 — Argument-value provenance (ADR-7): opt-in `TaintRule.require_value_from_source` field + 3 `-P` AGT-TRJ rule variants; BENIGN FP 0/352, FAILED FP 13.9% (halved); PREREG SHA `5e62e9e2` UNCHANGED post-scan
 
 **Exploring** — demand-driven, not committed
 
-- [ ] v2.3 (proposed) — argument-value provenance discriminator to attack the 28.7 % correlation-FP (causal proxy, deterministic, offline). Pre-proposal at `.omc/plans/v2.3-followups.md` (consensus IN PROGRESS).
-- [ ] v2.3 (proposed) — current-frontier on the harder AgentDyn open-ended suites (shopping / github / dailylife). Blocked by AgentDyn's model registry not carrying current-frontier OpenRouter IDs.
-- [ ] v2.3 (proposed) — S2 shell AST escalation (conch-parser vendor) if the `shlex` pass proves insufficient on adversarial inputs.
+- [ ] v2.4 (proposed) — current-frontier on the harder AgentDyn open-ended suites (shopping / github / dailylife). Blocked by AgentDyn's model registry not carrying current-frontier OpenRouter IDs.
+- [ ] v2.4 (proposed) — S2 shell AST escalation (conch-parser vendor) if the `shlex` pass proves insufficient on adversarial inputs. [Conch-parser dep-graph + audit pre-verified green](docs/adr/ADR-7-argument-value-provenance.md).
 - [ ] Repo-file normalisation (ADR-5 M4 deferred gap) — A3 homoglyph / zero-width / casing runs in the session value picker only; a future PR extends it to `parse_repo` for the dominant indirect-injection surface.
 - [ ] Additional agent-transcript formats
 - [ ] First-mover OWASP Agentic Skills (AST01–AST10) rules once the draft stabilises
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome.
 
@@ -313,7 +312,7 @@ Contributions are welcome.
 
 ---
 
-## 📄 License
+## License
 
 Licensed under either of **[MIT](LICENSE-MIT)** or **[Apache-2.0](LICENSE-APACHE)**, at your option.
 
