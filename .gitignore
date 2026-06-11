@@ -33,3 +33,9 @@ target/
 # is the gitignored output.
 scripts/eval/b0-1-probe-results.md
 scripts/eval/__pycache__/
+
+# v2.4 B-1 raw harness output (US-008). The trace json, the usage-proof
+# jsonl, and the per-suite summary are all gitignored — only the
+# PROOF-v2.4-open-ended.md headline numbers (committed separately) are
+# tracked. Mirrors the v2.2 / v2.3 pattern: eval data stays local.
+eval/v24-open-ended/

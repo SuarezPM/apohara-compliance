@@ -199,6 +199,18 @@ class MalformedModelIdHandling(unittest.TestCase):
     No silent skip, no panic.
     """
 
+    def setUp(self):
+        # These tests assume the OpenRouter provider: the validation
+        # contract they check (`<provider>/<model>` with at least one
+        # slash) is the OpenRouter one. The minimax validation is
+        # exercised in the provider-specific tests below.
+        import unittest.mock
+        self._provider_patch = unittest.mock.patch.object(harness, "PROVIDER", "openrouter")
+        self._provider_patch.start()
+
+    def tearDown(self):
+        self._provider_patch.stop()
+
     def test_empty_string_is_rejected(self):
         clean, bad = harness.validate_model_ids(["", "openai/gpt-5.5"])
         self.assertEqual(bad, [""])
@@ -393,11 +405,21 @@ class CliArgumentContract(unittest.TestCase):
         ns = ap.parse_args(["--cap-per-pair", "0"])
         self.assertEqual(ns.cap_per_pair, 0)
 
-    def test_models_default_is_the_v22_frontier_list(self):
+    def test_models_default_is_the_v24_minimax_single(self):
+        # v2.4 B-1 (Pablo-gated 2026-06-11): single model × 3 suites
+        # via the MINIMAX gateway, no paid budget. The OpenRouter
+        # v22-five-frontier list is preserved as a documentation
+        # reference but NOT the harness default. To restore the
+        # v22 5-model list, set APOHARA_EVAL_PROVIDER=openrouter and
+        # pass --models explicitly.
         ap = _make_argparser()
         ns = ap.parse_args([])
         self.assertEqual(ns.models, harness.DEFAULT_MODELS)
-        self.assertEqual(len(ns.models), 5)
+        self.assertEqual(len(ns.models), 1)
+        # The default is the bare MINIMAX model name (the strip_prefix
+        # logic in build_pipeline handles the `minimax/` prefix if a
+        # caller passes it explicitly).
+        self.assertEqual(ns.models[0], "MiniMax-M3")
 
 
 if __name__ == "__main__":

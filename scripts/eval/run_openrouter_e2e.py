@@ -31,17 +31,54 @@ import sys
 import time
 
 AUTH = os.path.expanduser("~/.local/share/opencode/auth.json")
-BASE_URL = "https://openrouter.ai/api/v1"
+
+# v2.4 B-1 provider: the harness defaults to OpenRouter (the v2.2 path,
+# v2.3 / PR #10 used it). To use the MINIMAX gateway instead, set both
+# APOHARA_EVAL_PROVIDER=minimax and (optionally) APOHARA_EVAL_BASE_URL +
+# APOHARA_EVAL_MODEL. The auth.json `minimax.key` is read when
+# APOHARA_EVAL_PROVIDER=minimax; the `openrouter.key` is read otherwise.
+# No key is ever logged. The selection is reflected in usage-proof.jsonl
+# under the `provider` field so the post-hoc scan can distinguish runs.
+PROVIDER = os.environ.get("APOHARA_EVAL_PROVIDER", "minimax").lower()
+PROVIDERS = {
+    "openrouter": {
+        "auth_key": "openrouter",
+        "base_url": os.environ.get("APOHARA_EVAL_BASE_URL", "https://openrouter.ai/api/v1"),
+        "default_model": "openrouter/anthropic/claude-sonnet-4.6",
+        # OpenRouter expects the `<provider>/<model>` id verbatim
+        # (e.g. `openrouter/anthropic/claude-sonnet-4.6`).
+        "strip_prefix": None,
+    },
+    "minimax": {
+        "auth_key": "minimax",
+        "base_url": os.environ.get("APOHARA_EVAL_BASE_URL", "https://api.minimax.io/v1"),
+        "default_model": os.environ.get("APOHARA_EVAL_MODEL", "MiniMax-M3"),
+        # The MINIMAX OpenAI-compatible gateway expects the bare model
+        # name (e.g. `MiniMax-M3`). We accept either form (bare or
+        # `minimax/<bare>`) at the CLI and normalize to bare in
+        # `validate_model_ids`.
+        "strip_prefix": "minimax/",
+        "valid_prefixes": ("", "minimax/"),
+    },
+}
+_PROVIDER_CONF = PROVIDERS.get(PROVIDER)
+if _PROVIDER_CONF is None:
+    raise SystemExit(
+        f"APOHARA_EVAL_PROVIDER={PROVIDER!r} is not supported. "
+        f"Choices: {sorted(PROVIDERS.keys())}"
+    )
+BASE_URL = _PROVIDER_CONF["base_url"]
+_AUTH_KEY = _PROVIDER_CONF["auth_key"]
 HERE = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT_DIR = os.path.join(HERE, "eval", "v22-live")
 
 # Phase-0-verified current-frontier ids (all passed AC4.1 smoke).
+# v2.4 B-1 uses the MINIMAX gateway by default (Pablo-gated 2026-06-11:
+# no paid budget, free-tier MiniMax-M3). Override via APOHARA_EVAL_MODEL
+# env var. The list is kept as a single element so the open-ended
+# frontier run is bounded to one model × three suites.
 DEFAULT_MODELS = [
-    "openai/gpt-5.5",
-    "google/gemini-3.5-flash",
-    "google/gemini-3.1-pro-preview",
-    "minimax/minimax-m3",
-    "anthropic/claude-opus-4.8",
+    _PROVIDER_CONF["default_model"],
 ]
 ATTACK = "important_instructions_no_model_name"
 BENCH = "v1.2.2"
@@ -117,16 +154,31 @@ class PairBudget:
 
 def validate_model_ids(models):
     """Return a (clean, bad) tuple. `bad` lists ids that don't look like
-    routable OpenRouter names. The harness keeps going on `clean` and prints
-    a clear per-id error for each entry in `bad`; it NEVER silently drops
-    a malformed id.
+    routable model names for the active provider. The harness keeps
+    going on `clean` and prints a clear per-id error for each entry in
+    `bad`; it NEVER silently drops a malformed id.
+
+    Validation is provider-aware:
+    - openrouter: `<provider>/<model>` (e.g. `openai/gpt-5.5`).
+    - minimax: bare (e.g. `MiniMax-M3`) OR `minimax/<bare>` (normalized
+      to bare at the OpenAILLM call site).
     """
     clean, bad = [], []
     for m in models:
-        if not isinstance(m, str) or not m or not _OPENROUTER_ID_RE.match(m):
+        if not isinstance(m, str) or not m:
             bad.append(m)
-        else:
+            continue
+        if PROVIDER == "minimax":
+            stripped = m.removeprefix("minimax/")
+            if not stripped or "/" in stripped:
+                bad.append(m)
+                continue
             clean.append(m)
+        else:  # openrouter
+            if not _OPENROUTER_ID_RE.match(m):
+                bad.append(m)
+            else:
+                clean.append(m)
     return clean, bad
 
 
@@ -190,6 +242,12 @@ def serialize_messages(messages):
 
 def build_pipeline(client, model, OpenAILLM, AgentPipeline, SystemMessage, InitQuery,
                    ToolsExecutionLoop, ToolsExecutor, load_system_message):
+    # Some providers (e.g. MINIMAX) want the bare model name without a
+    # `<provider>/` prefix; others (OpenRouter) want the prefix verbatim.
+    # `_PROVIDER_CONF["strip_prefix"]` controls the transformation; None
+    # means no change.
+    if _PROVIDER_CONF.get("strip_prefix"):
+        model = model.removeprefix(_PROVIDER_CONF["strip_prefix"])
     llm = OpenAILLM(client, model)
     sysmsg = load_system_message(None)
     pipeline = AgentPipeline(
@@ -240,7 +298,15 @@ def main() -> int:
               file=sys.stderr)
         return 2
 
-    key = json.load(open(AUTH))["openrouter"]["key"]  # local var only; never logged
+    # opencode auth.json stores each provider as `{"type": "api", "key": "..."}`;
+    # the v2.2 code mistakenly read the outer dict (which OpenAI rejected
+    # as a malformed key). v2.4 digs one level deeper. Key is a local var;
+    # it is never logged.
+    auth_entry = json.load(open(AUTH))[_AUTH_KEY]
+    if isinstance(auth_entry, dict):
+        key = auth_entry["key"]
+    else:
+        key = auth_entry
     from openai import OpenAI
     from agentdojo.agent_pipeline import (
         AgentPipeline, SystemMessage, InitQuery, OpenAILLM, ToolsExecutionLoop,
